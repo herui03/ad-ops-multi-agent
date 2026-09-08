@@ -1,8 +1,10 @@
 # Ad Ops Multi-Agent System
 
+[![tests](https://github.com/herui03/ad-ops-multi-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/herui03/ad-ops-multi-agent/actions/workflows/tests.yml)
+
 A multi-agent assistant for a digital advertising sales & operations team, built with LangGraph, FastAPI and React. An account manager types a request in plain English ("plan a CNY campaign for a Marina Bay hotel targeting Chinese tourists"); an orchestrator agent breaks it into sub-tasks, dispatches six specialist agents in dependency order, streams their status to the UI over WebSocket, pauses for human approval on budget and compliance decisions, and returns one client-ready brief.
 
-The scenario is a cross-border social advertising platform whose Singapore team sells to Singapore brands that want to reach Chinese-speaking visitors and residents. Platform names, clients and campaign numbers are illustrative — the system runs in mock mode against sample data out of the box.
+The scenario is a cross-border social advertising platform whose Singapore team sells to Singapore brands that want to reach Chinese-speaking visitors and residents. Platform names, clients and campaign numbers are illustrative; the system runs in mock mode against sample data out of the box.
 
 ![Ad Ops Agent UI](docs/screenshot.png)
 
@@ -73,7 +75,7 @@ Open http://localhost:5173. API docs are at http://localhost:8000/docs. `./start
 ## Tests
 
 ```bash
-pytest                      # unit tests — no API key needed
+pytest                      # unit tests, no API key needed
 pytest tests/live -q        # live tests against Groq: routing, RAG grounding, edge cases
 python scripts/demo_routing.py   # prints how the orchestrator routes sample requests
 ```
@@ -88,14 +90,14 @@ backend/
   memory/        shared memory with Redis / in-process fallback
   rag.py         TF-IDF retriever over rag_documents/
   main.py        FastAPI app: chat, approvals, sessions, dashboard, WebSocket
-frontend/src/    React UI — ChatPanel, AgentStatus, HumanApproval, Dashboard, CampaignView
+frontend/src/    React UI: ChatPanel, AgentStatus, HumanApproval, Dashboard, CampaignView
 rag_documents/   regulation corpus used by the compliance agent
 tests/           unit tests; tests/live/ for LLM-backed tests
 ```
 
 ## Limitations and what I'd do next
 
-The ad platform client is a mock — wiring a real ads API means replacing `backend/tools/ad_api.py` and adding auth. Agent outputs are validated as JSON but not against per-agent schemas yet; Pydantic models for each output would make the synthesis step more robust. The regulation corpus is small and hand-written; a real deployment would ingest the platform's actual policy documents and switch to embedding-based retrieval once the corpus outgrows TF-IDF. Steps within a phase still run one after another; independent agents (e.g. Strategy and CI) could run concurrently with `asyncio.gather`. There is no evaluation harness for output quality — the next step would be a small set of golden requests with rubric-based scoring.
+The ad platform client is a mock; wiring a real ads API means replacing `backend/tools/ad_api.py` and adding auth. Agent outputs are validated as JSON but not against per-agent schemas yet; Pydantic models for each output would make the synthesis step more robust. The regulation corpus is small and hand-written; a real deployment would ingest the platform's actual policy documents and switch to embedding-based retrieval once the corpus outgrows TF-IDF. Steps within a phase still run one after another; independent agents (e.g. Strategy and CI) could run concurrently with `asyncio.gather`. There is no evaluation harness for output quality; the next step would be a small set of golden requests with rubric-based scoring.
 
 ## Background
 
