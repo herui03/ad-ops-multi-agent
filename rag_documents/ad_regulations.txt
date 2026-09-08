@@ -1,0 +1,73 @@
+# Global Advertising Regulations Summary
+
+## 1. Truth in Advertising (FTC Guidelines - United States)
+- All advertising claims must be truthful and non-deceptive.
+- Advertisers must have evidence to back up their claims ("substantiation").
+- Ads cannot be unfair, meaning they cannot cause substantial consumer injury.
+- Endorsements must reflect honest opinions. If a connection exists between the endorser and the seller, it must be disclosed.
+- The FTC Act prohibits "unfair or deceptive acts or practices in or affecting commerce."
+- Native advertising and sponsored content must be clearly labeled as advertising.
+
+## 2. ASA CAP Code (United Kingdom)
+- Marketing communications must be legal, decent, honest, and truthful.
+- Marketing communications must be prepared with a sense of responsibility to consumers and to society.
+- No marketing communication should bring advertising into disrepute.
+- Marketing communications must not mislead or be likely to mislead by inaccuracy, ambiguity, exaggeration, omission, or otherwise.
+- Subjective claims must not be presented as objective claims.
+- Before distributing or submitting a marketing communication for publication, marketers must hold documentary evidence to prove claims that consumers are likely to regard as objective.
+
+## 3. Health & Medical Claims
+- Health claims must be backed by rigorous scientific evidence.
+- No product may claim to cure, treat, or prevent disease without regulatory approval.
+- Before-and-after images must not be misleading.
+- Weight loss ads must not promise specific results without evidence.
+- Supplements cannot claim to replace medical treatment.
+
+## 4. Financial Products Advertising
+- All financial promotions must be fair, clear, and not misleading.
+- Risk warnings must be displayed prominently, not hidden in small print.
+- APR and interest rates must be shown clearly.
+- Past performance disclaimers are required: "Past performance is not indicative of future results."
+- Cryptocurrency ads must include risk warnings about potential total loss.
+
+## 5. Alcohol Advertising
+- Alcohol ads must not be directed at people under the legal drinking age.
+- Ads must not imply that alcohol enhances social, sexual, or physical capabilities.
+- Ads must not encourage excessive or irresponsible consumption.
+- Ads must not link alcohol to driving or operating machinery.
+- Health warnings may be required depending on jurisdiction.
+
+## 6. Advertising to Children
+- Ads must not exploit children's credulity, loyalty, vulnerability, or lack of experience.
+- Ads must not directly exhort children to buy advertised products or persuade parents to buy.
+- Ads for high-fat, high-sugar, high-salt (HFSS) foods have placement restrictions.
+- COPPA (US): Cannot collect personal data from children under 13 without parental consent.
+- In-app purchase mechanics must not be designed to exploit children.
+
+## 7. Data Privacy in Advertising (GDPR / CCPA)
+- Users must give explicit consent before their data is used for targeted advertising.
+- Users have the right to opt out of personalized ads.
+- Data collected for advertising must be stored securely and deleted when no longer needed.
+- Third-party data sharing for ad targeting requires transparency and consent.
+- Cookie consent banners are required in the EU for tracking technologies.
+
+## 8. Comparative Advertising
+- Comparing products is allowed but must be factually accurate.
+- Comparisons must not denigrate or discredit competitors unfairly.
+- Claims of superiority must be substantiated with evidence.
+- Comparisons must be between products meeting the same needs.
+- Trademarks of competitors can be used for comparison but not to create confusion.
+
+## 9. Environmental / Green Claims
+- Environmental claims must be based on the full life cycle of the product.
+- Vague terms like "eco-friendly" or "green" must be substantiated.
+- Carbon-neutral claims must be supported by certified offset programs.
+- Packaging claims (e.g., "recyclable") must reflect actual recycling infrastructure.
+- Greenwashing is subject to regulatory action in the EU, UK, and US.
+
+## 10. Influencer & Social Media Advertising
+- Sponsored content must be clearly disclosed using labels like #ad or #sponsored.
+- Disclosure must be immediate and prominent, not buried in hashtags.
+- Influencers must actually use products they endorse.
+- Fake reviews and fake followers are prohibited.
+- Platforms may be held liable for undisclosed paid partnerships.

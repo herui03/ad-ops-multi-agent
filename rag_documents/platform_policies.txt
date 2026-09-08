@@ -1,0 +1,106 @@
+# Social Media Platform Advertising Policies
+
+## Meta (Facebook & Instagram)
+### Prohibited Content
+- Ads must not contain deceptive, false, or misleading content, including deceptive claims, offers, or methods.
+- Ads must not contain content that exploits crises or controversial political or social issues for commercial purposes.
+- Ads must not promote the sale or use of illegal products or services.
+- Ads must not contain adult content, including nudity or implied sexual activity.
+- Ads must not promote payday loans or any loan with an APR of 36% or higher.
+
+### Restricted Content (requires special approval)
+- Alcohol ads: Must comply with local laws and target age 18+ (or legal drinking age).
+- Dating ads: Must be pre-approved and follow dating-specific guidelines.
+- Cryptocurrency ads: Require written approval from Meta.
+- Political ads: Must include "Paid for by" disclaimers and be registered in the Ad Library.
+- Health & wellness: Cannot make unrealistic promises about results.
+
+### Targeting Restrictions
+- Cannot target ads based on sensitive personal attributes (race, ethnicity, religion, sexual orientation).
+- Special Ad Categories (housing, employment, credit) have restricted targeting options.
+- Custom audiences must be collected with user consent.
+- Lookalike audiences for Special Ad Categories are limited.
+
+### Technical Requirements
+- Image ads: Primary text 125 characters, headline 27 characters recommended.
+- Video ads: Recommended aspect ratio 1:1 or 4:5 for feed.
+- Text in images should be minimal (old 20% text rule replaced by algorithmic preference).
+- Landing pages must be functional and match ad content.
+
+## Google Ads
+### Prohibited Content
+- Counterfeit goods are strictly prohibited.
+- Dangerous products or services (explosives, drugs, weapons).
+- Content enabling dishonest behavior (hacking software, fake documents).
+- Inappropriate content (bullying, discrimination, shocking content).
+
+### Restricted Content
+- Sexual content: Limited, with strict targeting requirements.
+- Alcohol: Allowed in specific countries, must comply with local laws.
+- Gambling: Requires certification and is limited to specific countries.
+- Healthcare: Restrictions vary by country; pharmaceutical ads require certification.
+- Financial services: Must comply with local regulations, include required disclaimers.
+
+### Editorial Standards
+- Ads must be clearly written and professional.
+- No excessive capitalization (e.g., "FREE MONEY NOW").
+- No gimmicky use of punctuation or symbols.
+- Phone numbers in ad text are not allowed (use call extensions instead).
+- Landing page must be functional, easy to navigate, and relevant to the ad.
+
+### Technical Requirements
+- Responsive search ads: Up to 15 headlines (30 chars each), 4 descriptions (90 chars each).
+- Display ads: Multiple size formats required for broad reach.
+- Video ads (YouTube): 15-second non-skippable or 6-second bumper ads available.
+
+## TikTok
+### Prohibited Content
+- No misleading claims or fake endorsements.
+- No promotion of tobacco, drugs, or weapons.
+- No political advertising in most markets.
+- No content that infringes intellectual property rights.
+- No ads promoting excessive body modification or unrealistic beauty standards.
+
+### Content Guidelines
+- Ads must feel native to the TikTok experience.
+- Overly polished or corporate-feeling content performs poorly and may be deprioritized.
+- Sound-on is expected — ads without audio are disadvantaged.
+- Vertical video (9:16) is required for full-screen experience.
+- Hook within the first 2 seconds is critical for engagement.
+
+### Restricted Content
+- Financial services: Must include risk disclaimers and target 18+.
+- Gambling: Prohibited in most markets.
+- Alcohol: Allowed in select markets with age gating.
+- Health supplements: Claims must be substantiated and not misleading.
+
+### Technical Requirements
+- Video length: 5-60 seconds (9-15 seconds recommended).
+- Resolution: Minimum 720p, recommended 1080p.
+- File size: Up to 500MB.
+- Aspect ratio: 9:16 (full screen vertical).
+
+## LinkedIn
+### Professional Standards
+- All ads must maintain professional tone appropriate to a business context.
+- No sensationalized or clickbait headlines.
+- No content irrelevant to professional development or business.
+- Job ads must represent real, currently open positions.
+
+### Prohibited Content
+- Deceptive business practices or get-rich-quick schemes.
+- Multi-level marketing (MLM) recruitment.
+- Adult content or dating services.
+- Illegal products or services.
+
+### Restricted Content
+- Financial services must include required regulatory disclaimers.
+- Educational institutions must be accredited.
+- Political ads are restricted to certain markets.
+- Health-related ads must be substantiated.
+
+### Technical Requirements
+- Sponsored Content: 150 characters intro text, 70 characters headline.
+- Image: 1200x627 pixels recommended.
+- Video: 3 seconds to 30 minutes, 16:9 or 1:1 aspect ratio.
+- Carousel: 2-10 cards per ad.

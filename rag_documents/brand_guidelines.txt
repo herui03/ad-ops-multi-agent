@@ -1,0 +1,54 @@
+# NovaByte Technologies — Brand Guidelines
+
+## Company Overview
+NovaByte Technologies is a B2B SaaS company specializing in AI-powered analytics for mid-market enterprises. Founded in 2021, headquartered in Singapore with offices in London and San Francisco.
+
+## Brand Voice
+- Tone: Professional yet approachable. We explain complex technology in human terms.
+- We are: Confident, innovative, trustworthy, data-driven.
+- We are NOT: Aggressive, hype-driven, condescending, overly casual.
+- Never use: "Revolutionary", "game-changing", "disrupting" — these are overused and erode trust.
+- Preferred terms: "Intelligent", "streamlined", "measurable impact", "evidence-based".
+
+## Visual Identity
+- Primary colors: Deep Navy (#1B2A4A), Electric Teal (#00C9A7).
+- Secondary colors: Soft Gray (#F4F5F7), Warm White (#FAFBFC).
+- Never use red as a primary color — it conflicts with our trust-oriented positioning.
+- Logo must have minimum 24px clear space on all sides.
+- Logo must not be placed on busy or low-contrast backgrounds.
+
+## Messaging Framework
+- Hero message: "Turn your data into decisions."
+- Supporting messages:
+  1. "AI analytics that speak your language."
+  2. "From insight to action in minutes, not months."
+  3. "Built for teams who measure what matters."
+- Always lead with the customer benefit, not the feature.
+- Statistics must be sourced and dated (e.g., "87% faster reporting — NovaByte Internal Study, Q3 2024").
+
+## Advertising Dos and Don'ts
+### Do:
+- Use real customer testimonials with attribution.
+- Include clear CTAs (Call-to-Action) in every ad.
+- A/B test all headlines before scaling spend.
+- Target by job title and industry, not demographics.
+- Show product UI screenshots in display ads where possible.
+
+### Don't:
+- Make claims we can't substantiate with data.
+- Use stock photos of people — use product screenshots or abstract visuals.
+- Run the same creative for more than 4 weeks without refresh.
+- Target competitors' brand keywords in search ads (company policy).
+- Use humor that could be misinterpreted across cultures.
+
+## Compliance Notes
+- All ads must include: "NovaByte Technologies Pte. Ltd." in the advertiser field.
+- Financial ROI claims must link to the case study source.
+- GDPR consent must be collected before any EU retargeting.
+- All landing pages must load within 3 seconds on mobile.
+
+## Target Audiences
+- Primary: VP/Director of Analytics, Head of Data, CTO at companies with 200-2000 employees.
+- Secondary: Marketing Directors seeking attribution solutions.
+- Tertiary: CFOs evaluating ROI on technology investments.
+- Exclusions: Students, job seekers, companies under 50 employees.
