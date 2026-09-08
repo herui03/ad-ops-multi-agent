@@ -1,0 +1,24 @@
+# Core web framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+websockets==14.1
+python-dotenv==1.0.1
+pydantic==2.10.4
+pydantic-settings==2.7.1
+
+# LangChain + LangGraph + Groq
+langchain==0.3.14
+langchain-groq==0.2.4
+langchain-community==0.3.14
+langgraph==0.2.60
+
+# Storage
+redis==5.2.1
+
+# HTTP client (for API calls)
+httpx==0.28.1
+python-multipart==0.0.20
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.25.0
