@@ -1,0 +1,16 @@
+# Follow-up R5-01f against the FIXED code
+# command: python -m pytest -q --tb=line -rA tests/test_review_r5.py ; then 25 repeated runs of the file
+PASSED tests/test_review_r5.py::test_r5_01_cancel_during_question_planner_is_not_completed
+PASSED tests/test_review_r5.py::test_r5_01_cancel_during_last_step_of_deliverable_is_not_completed
+PASSED tests/test_review_r5.py::test_r5_01_cancel_during_last_campaign_step_never_reaches_gate
+PASSED tests/test_review_r5.py::test_r5_01_cancel_between_proposal_and_interrupt_never_executes
+PASSED tests/test_review_r5.py::test_r5_01_simulator_refuses_a_cancelled_run
+PASSED tests/test_review_r5.py::test_r5_01_cancel_after_committed_action_is_refused_not_hidden
+PASSED tests/test_review_r5.py::test_r5_01_cancel_after_recorded_but_unexecuted_approve_stays_cancelled
+PASSED tests/test_review_r5.py::test_r5_02_concurrent_recover_claims_once
+PASSED tests/test_review_r5.py::test_r5_02_transition_is_strict_unless_marked_idempotent
+PASSED tests/test_review_r5.py::test_r5_02_recover_on_finished_checkpoint_does_not_leave_run_running
+PASSED tests/test_review_r5.py::test_r5_01f_cancel_during_recovery_of_committed_action_is_refused
+PASSED tests/test_review_r5.py::test_r5_01f_store_invariant_committed_action_cannot_be_cancelled_or_rejected
+12 passed in 1.49s
+repeat runs of tests/test_review_r5.py: 25, failing runs: 0

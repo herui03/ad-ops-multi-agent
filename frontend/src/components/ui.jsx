@@ -17,7 +17,7 @@ const STATUS_STYLE = {
   approved: 'bg-emerald-50 text-emerald-800 border-emerald-400',
   superseded: 'bg-slate-100 text-slate-500 border-slate-300',
   revision_requested: 'bg-violet-50 text-violet-800 border-violet-300',
-  answered: 'bg-emerald-50 text-emerald-800 border-emerald-400',
+  unverified_excerpts: 'bg-amber-50 text-amber-900 border-amber-400',
   abstained: 'bg-slate-100 text-slate-700 border-slate-300',
   conflict: 'bg-amber-50 text-amber-900 border-amber-400',
 };

@@ -19,14 +19,17 @@
 
 A citation proves where a sentence came from. It does not show the sentence is current law, official policy or legal approval.
 
-## Method (current answerer, sha256 `ef10c67e…` of `backend/grounding.py`)
+## Method (current answerer, sha256 `8405c331…` of `backend/grounding.py`)
 
 1. Instruction-like sentences in the question (e.g. "Ignore previous instructions…") are removed before matching and reported as `ignored_question_text`.
 2. TF-IDF cosine retrieval, top 5, over section-level chunks. Chunks matching instruction-like patterns are excluded from evidence and listed as excluded.
 3. Abstain if the best score is below 0.12, or the best chunk covers under 40% of the question's content terms.
 4. **Conflict check across the whole corpus:** if the best chunk carries a `topic:` tag, every chunk in the corpus with that tag is compared. Another document with a different `position:` produces a conflict with both sides cited, even if that chunk was not retrieved.
 5. **Quoted-text support:** the sentences that would be shown must themselves contain at least 30% of the question's content terms. A match on the chunk heading or on other sentences is not support. Otherwise the result is `abstained`, with the closest chunks listed as `candidate_evidence`, labelled "not an answer".
-6. Otherwise answer with up to two verbatim sentences from the best chunk, each cited.
+6. **Provenance questions** ask who approved, authored or signed a document, when such an event happened, or its change history. They always abstain, because the corpus metadata (`doc_id, title, version, effective, kind, trust, note`) records none of these facts. Policy text about an "approver role" is not a record of a historical approver.
+7. Otherwise return up to two verbatim sentences from the best chunk, each cited, with the outcome **`unverified_excerpts`**, labelled "UNVERIFIED SOURCE EXCERPTS: keyword match, human review required".
+
+Every result carries `verified: false` and a warning: keyword matching does not verify that an excerpt answers the question, and a relevant-looking quote can still answer a different question. Before the round-5 follow-up this outcome was called `answered`. The case files still say "answered", and the eval runner reads that as `unverified_excerpts`; the case files themselves are unedited.
 
 ## History and case sets
 
@@ -36,6 +39,10 @@ A citation proves where a sentence came from. It does not show the sentence is c
 | 5 | current | same 23 cases | **regression only.** Their failures (U5, C4, I4) were read while designing steps 1, 4 and 5, so they are no longer held-out evidence | 22/23: [eval-regression-r1-set.md](evidence/eval-regression-r1-set.md) |
 | 5 | current, frozen by hash before the cases were written | `eval/heldout_r5_cases.jsonl` (24, **new**) | held-out: written after freezing, run once, not tuned on | **21/24**: [eval-heldout-r5-first-run.md](evidence/eval-heldout-r5-first-run.md) |
 | 5 (comparison) | old `c149c38` | the same 24 new cases | same | 20/24: [eval-heldout-r5-OLD-answerer-c149c38.md](evidence/eval-heldout-r5-OLD-answerer-c149c38.md) |
+| 5 follow-up | current (`8405c331…`): provenance rule + unverified labelling | round-1 set | regression | 22/23: [eval-regression-r1-set.md](evidence/eval-regression-r1-set.md) |
+| 5 follow-up | same | round-5 set | **regression now.** N-U7's failure informed the provenance rule | 22/24: [eval-regression-r5-set.md](evidence/eval-regression-r5-set.md). Still failing: N-S1, N-U6 |
+
+The **last held-out number is the frozen 21/24**. No further held-out round was run after the follow-up, by design: further tuning against freshly written cases would not show semantic grounding, which this lexical method does not have.
 
 The round-5 guards are general rules; none branch on case ids or particular wording. One DEV expectation changed: "Do price claims need a validity period?" now returns **conflict** instead of answered. The fictional Harbourlight guidance takes a different position on the same tagged topic, and the corpus-wide conflict check now surfaces that.
 
@@ -72,7 +79,7 @@ The old answerer failed the same three questions, all with confident answers. It
 
 ## What this does and does not support
 
-The guards make the answerer more conservative and remove the specific failure *patterns* found in round 1. The fresh round-5 set shows the approach is still **lexical**: it can quote a real, on-topic sentence that does not answer the question (N-S1, N-U7).
+The guards make the answerer more conservative and remove the specific failure *patterns* found in round 1. The fresh round-5 set shows the approach is still **lexical**: it can quote a real, on-topic sentence that does not answer the question (N-S1, N-U7). This is why a successful lookup is reported as **unverified excerpts** that need human review, never as a verified answer. The provenance rule removes one class of error, questions about document events; it does not make the matching semantic.
 
 Treat every answer as a cited extract for a person to check, not as a decision. In this project, answers never influence the approval gate or any action. Fixing N-U7-type errors properly needs semantic matching (embeddings or an entailment check) and independently written cases. Neither is implemented. No live language-model quality is claimed.
 

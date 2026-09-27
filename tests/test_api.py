@@ -53,7 +53,7 @@ def test_ac14_full_demo_runs_without_key_or_network(settings, monkeypatch):
         assert h.decide(rid).json()["run"]["status"] == "completed"
         assert len(h.actions()) == 1
         q = h.create("Who must approve a campaign launch?")
-        assert h.detail(q)["result"]["answer"]["outcome"] == "answered"
+        assert h.detail(q)["result"]["answer"]["outcome"] == "unverified_excerpts"
     finally:
         h.stop()
 

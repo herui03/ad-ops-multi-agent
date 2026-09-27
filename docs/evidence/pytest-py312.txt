@@ -1,5 +1,5 @@
 # command: python -m pytest -v -rs   (Python 3.12.3, venv from requirements.txt, no GROQ_API_KEY, demo provider)
-# run by Claude in the session container, 2026-09-27, after review round 5 fixes
+# run by Claude in the session container, 2026-09-27, after R5-01f, R5-03b and R5-04
 tests/live/test_live_provider.py::test_live_campaign_reaches_gate_or_fails_honestly SKIPPED
 tests/test_api.py::test_ac13_user_text_is_stored_verbatim_and_exported_safely PASSED
 tests/test_api.py::test_ac14_full_demo_runs_without_key_or_network PASSED
@@ -56,10 +56,10 @@ tests/test_gate.py::test_simulator_refuses_without_recorded_approval PASSED
 tests/test_grounding.py::test_corpus_integrity_and_labels PASSED
 tests/test_grounding.py::test_policy_rule_citations_resolve PASSED
 tests/test_grounding.py::test_ac11_dev_cases[Do price claims need a validity period?-conflict-simads-ad-policy@2.1#price-claims] PASSED
-tests/test_grounding.py::test_ac11_dev_cases[Who must approve a campaign launch?-answered-simads-ad-policy@2.1#launch-approval] PASSED
-tests/test_grounding.py::test_ac11_dev_cases[Is guaranteed upgrade wording allowed?-answered-simads-ad-policy@2.1#guarantees] PASSED
-tests/test_grounding.py::test_ac11_dev_cases[How long can short videos be?-answered-simads-creative-specs@1.0#video-length] PASSED
-tests/test_grounding.py::test_ac11_dev_cases[What are the recommended posting times?-answered-vendor-field-notes@0.3#posting-times] PASSED
+tests/test_grounding.py::test_ac11_dev_cases[Who must approve a campaign launch?-unverified_excerpts-simads-ad-policy@2.1#launch-approval] PASSED
+tests/test_grounding.py::test_ac11_dev_cases[Is guaranteed upgrade wording allowed?-unverified_excerpts-simads-ad-policy@2.1#guarantees] PASSED
+tests/test_grounding.py::test_ac11_dev_cases[How long can short videos be?-unverified_excerpts-simads-creative-specs@1.0#video-length] PASSED
+tests/test_grounding.py::test_ac11_dev_cases[What are the recommended posting times?-unverified_excerpts-vendor-field-notes@0.3#posting-times] PASSED
 tests/test_grounding.py::test_ac11_dev_cases[What is CPM?-abstained-None] PASSED
 tests/test_grounding.py::test_ac11_dev_cases[What is the weather in Singapore tomorrow?-abstained-None] PASSED
 tests/test_grounding.py::test_ac11_dev_cases[What is the maximum daily budget for TikTok ads in Japan?-abstained-None] PASSED
@@ -75,11 +75,27 @@ tests/test_grounding.py::test_ac15_production_code_never_references_gold_labels 
 tests/test_grounding.py::test_ac15_answerer_does_not_open_eval_files_at_runtime PASSED
 tests/test_grounding.py::test_eval_runner_reports_exact_denominators PASSED
 tests/test_grounding.py::test_question_run_goes_through_workflow_and_is_labelled PASSED
+tests/test_grounding.py::test_r5_03b_provenance_questions_abstain_without_metadata[Who wrote the NovaByte brand guidelines?] PASSED
+tests/test_grounding.py::test_r5_03b_provenance_questions_abstain_without_metadata[When was the creative specification sheet published?] PASSED
+tests/test_grounding.py::test_r5_03b_provenance_questions_abstain_without_metadata[Who signed off the Harbourlight guidelines?] PASSED
+tests/test_grounding.py::test_r5_03b_provenance_questions_abstain_without_metadata[What is the approval date of the regulation summaries?] PASSED
+tests/test_grounding.py::test_r5_03b_policy_questions_about_approval_roles_are_not_provenance PASSED
+tests/test_grounding.py::test_r5_03b_every_result_is_labelled_unverified PASSED
 tests/test_providers.py::test_request_shape_and_envelope PASSED
 tests/test_providers.py::test_http_errors_map_to_provider_error_without_body[resp0-ProviderError] PASSED
 tests/test_providers.py::test_http_errors_map_to_provider_error_without_body[resp1-ProviderError] PASSED
 tests/test_providers.py::test_timeout_maps_and_step_fails_bounded PASSED
 tests/test_providers.py::test_error_messages_are_redacted PASSED
+tests/test_reset.py::test_r5_04_reset_refuses_while_server_running_and_changes_nothing PASSED
+tests/test_reset.py::test_r5_04_reset_refuses_running_server_via_symlink_alias PASSED
+tests/test_reset.py::test_r5_04_stopped_reset_archives_uniquely_and_keeps_data PASSED
+tests/test_reset.py::test_r5_04_same_second_archives_never_nest_or_overwrite PASSED
+tests/test_reset.py::test_r5_04_refuses_unrelated_directory[--confirm] PASSED
+tests/test_reset.py::test_r5_04_refuses_unrelated_directory[--confirm --delete] PASSED
+tests/test_reset.py::test_r5_04_refuses_directory_with_unexpected_content_even_if_marked PASSED
+tests/test_reset.py::test_r5_04_refuses_a_source_checkout PASSED
+tests/test_reset.py::test_r5_04_validation_refuses_root_home_and_repo_without_touching_them PASSED
+tests/test_reset.py::test_r5_04_server_start_refused_while_reset_holds_exclusive_lock PASSED
 tests/test_restart.py::test_ac2_restart_while_pending_then_exact_approval_resumes_same_run PASSED
 tests/test_restart.py::test_ac10_crash_after_commit_is_reconciled_not_reexecuted PASSED
 tests/test_restart.py::test_ac10_crash_before_commit_rolls_back_then_executes_once PASSED
@@ -97,5 +113,7 @@ tests/test_review_r5.py::test_r5_01_cancel_after_recorded_but_unexecuted_approve
 tests/test_review_r5.py::test_r5_02_concurrent_recover_claims_once PASSED
 tests/test_review_r5.py::test_r5_02_transition_is_strict_unless_marked_idempotent PASSED
 tests/test_review_r5.py::test_r5_02_recover_on_finished_checkpoint_does_not_leave_run_running PASSED
+tests/test_review_r5.py::test_r5_01f_cancel_during_recovery_of_committed_action_is_refused PASSED
+tests/test_review_r5.py::test_r5_01f_store_invariant_committed_action_cannot_be_cancelled_or_rejected PASSED
 SKIPPED [1] tests/live/test_live_provider.py:21: NOT RUN: GROQ_API_KEY not set; live LLM behaviour was not tested
-======================== 96 passed, 1 skipped in 11.36s ========================
+======================= 114 passed, 1 skipped in 12.33s ========================

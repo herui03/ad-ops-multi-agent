@@ -261,6 +261,7 @@ async function main() {
   await waitStatus(page, 'completed');
   await page.getByTestId('answer-card').waitFor();
   const outcome7 = await page.getByTestId('answer-outcome').innerText();
+  const warn7 = await page.getByTestId('unverified-warning').innerText();
   await page.getByTestId('citation').first().locator('button').click();
   const s7a = await shot(page, '14-grounded-answer');
   const r8 = await submit(page, 'How much of an image can be covered by text overlay?');
@@ -278,7 +279,7 @@ async function main() {
   const s7d = await shot(page, '16b-abstain-with-candidate-evidence');
   record('keyword match without support: abstain, candidate evidence shown separately', outcome9b === 'abstained' &&
     (await page.getByTestId('citation').count()) >= 1, { run_id: r9b, screenshot: s7d });
-  record('grounded answer / conflict / abstain shown with citations', outcome7 === 'answered' && outcome8 === 'conflict' &&
+  record('unverified excerpts (with visible warning) / conflict / abstain shown with citations', outcome7 === 'unverified excerpts' && warn7.includes('does not verify') && outcome8 === 'conflict' &&
     outcome9 === 'abstained', { runs: [r7, r8, r9], screenshots: [s7a, s7b, s7c] });
 
   // 8. unsafe text renders as text

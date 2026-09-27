@@ -114,7 +114,7 @@ A cancel is either **accepted before the run reaches a terminal state or the gat
 | awaiting approval | Recorded as a `cancel` decision on the current revision; the graph resumes into `cancelled`. |
 | resuming (a decision is being applied) | `409 run_busy`: the outcome of the in-flight decision decides. |
 | failed / interrupted, **no action committed** | `cancelled`. Any recorded but unexecuted approve is voided and the proposal is marked `cancelled`. Recover then refuses. |
-| failed / interrupted, **a simulated action already committed** (crash after commit) | `409 action_already_committed` with the action ids. The run cannot be marked cancelled as if nothing happened; Recover reconciles it to `completed`. |
+| any state, **a simulated action already committed** (crash after commit, including while a Recover has claimed the run and it shows `running`) | `409 action_already_committed` with the action ids, checked in the same transaction that would accept the cancel. The run cannot be marked cancelled as if nothing happened; Recover reconciles it to `completed`. At the lowest write level, `Store._set` refuses any `cancelled` or `rejected` status for a run with a ledger row. |
 
 At the action boundary the simulator also refuses inside its ledger transaction if the run is not `resuming` or `running`, or if a cancel was accepted.
 
@@ -132,12 +132,13 @@ At the action boundary the simulator also refuses inside its ledger transaction 
 | A separate application store | The gate rules (roles, revisions, idempotency, ledger) need transactional reads and writes. The checkpointer is an execution log, not a place to enforce business rules. |
 | Deterministic demo provider | Anyone can run the whole flow with no key and no network, and tests are reproducible. It is labelled everywhere so it is not mistaken for a model. |
 | Rule-engine compliance as a backstop | Model findings are merged, but blocking rules do not depend on a model noticing them. |
-| Extractive answers only | Every sentence shown is a verbatim quote with a resolvable citation, so it cannot invent plausible citations. The quoted sentences must themselves support the question, and topic conflicts are checked corpus-wide. The trade-off is lexical matching: it can still quote an on-topic sentence that does not answer the question (see EVALUATION.md). |
+| Extractive excerpts only, labelled unverified | Every sentence shown is a verbatim quote with a resolvable citation, so it cannot invent plausible citations. Quoted sentences must contain the question's terms, topic conflicts are checked corpus-wide, and provenance questions abstain. Because matching is lexical, a relevant quote can still answer a different question, so successful lookups are labelled `unverified_excerpts` with a human-review warning. |
 | Redis removed | One transactional store is simpler and stronger than a cache plus a database for this workload. |
 
 ## Limits
 
 * Single process. Per-run locks are in-process, and SQLite serializes writes. Running several workers would need a database-level lease per run.
 * Demo roles are self-declared headers. They are enforced server-side, but they are **not authentication**. GET endpoints are open. Do not expose the server publicly.
+* The data directory lock (`backend/datalock.py`) uses POSIX `flock`. It is tested on Linux, untested on macOS, and Windows is unsupported.
 * The body-size check uses `Content-Length`; request fields also have length limits after parsing.
 * A timed-out provider call cannot be killed in Python. It is abandoned, and the live provider's own HTTP timeout ends it.

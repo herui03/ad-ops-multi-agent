@@ -29,6 +29,10 @@ from backend.grounding import answer_question, get_corpus  # noqa: E402
 def check_case(case: dict, result: dict) -> list[str]:
     corpus = get_corpus()
     failures = []
+    # The case files predate review round 5 and say "answered"; the answerer now reports that state as
+    # "unverified_excerpts" (same behaviour, honest label). The case files are left unedited.
+    expected = ["unverified_excerpts" if o == "answered" else o for o in case["expected_outcome"]]
+    case = {**case, "expected_outcome": expected}
     if result["outcome"] not in case["expected_outcome"]:
         failures.append(f"outcome {result['outcome']!r} not in {case['expected_outcome']}")
     cited = [c["chunk_id"] for c in result["citations"]]
@@ -45,7 +49,7 @@ def check_case(case: dict, result: dict) -> list[str]:
         if c["sha256"] != hashlib.sha256(chunk.text.encode()).hexdigest():
             failures.append(f"sha256 mismatch for {c['chunk_id']}")
     expected = case.get("expected_chunks")
-    if expected and result["outcome"] in ("answered", "conflict"):
+    if expected and result["outcome"] in ("unverified_excerpts", "conflict"):
         if case.get("require_all_expected"):
             missing = [e for e in expected if e not in cited]
             if missing:

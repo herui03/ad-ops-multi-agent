@@ -256,7 +256,13 @@ class Store:
                 if current == to:
                     return current  # replayed terminal node
                 raise Conflict("invalid_transition", f"run is already {current!r}", status=current)
-            if row["cancel_requested"]:
+            committed = self._committed_action_ids(c, run_id)
+            if row["cancel_requested"] and committed:
+                # cannot happen through request_cancel (it refuses atomically); defensive: the ledger fact wins
+                self._set(c, run_id, cancel_requested=False)
+                self._event(c, run_id, "cancel_not_applied", {"reason": "simulated action already committed",
+                                                              "action_ids": committed})
+            elif row["cancel_requested"]:
                 self._set(c, run_id, status="cancelled", retryable=False,
                           result=cancel_result or {"kind": "cancelled", "summary": "Cancelled before it finished. "
                                                    "No action executed."})
@@ -278,6 +284,8 @@ class Store:
             if row["status"] not in ("running", "resuming", "interrupted"):
                 raise Conflict("invalid_transition", f"run is {row['status']!r}; cannot settle gate",
                                status=row["status"])
+            if row["cancel_requested"] and self._committed_action_ids(c, run_id):
+                raise Conflict("action_already_committed", "cannot settle a gate for a run with a committed action")
             if not row["cancel_requested"]:
                 self._set(c, run_id, status="awaiting_approval", error_code=None, error_message=None)
                 self._event(c, run_id, "awaiting_approval", {"from": row["status"], "to": "awaiting_approval",
@@ -327,7 +335,17 @@ class Store:
             self._set(c, run_id, **fields)
 
     @staticmethod
+    def _committed_action_ids(c: sqlite3.Connection, run_id: str) -> list[str]:
+        return [r["action_id"] for r in c.execute("SELECT action_id FROM sim_actions WHERE run_id=?", (run_id,))]
+
+    @staticmethod
     def _set(c: sqlite3.Connection, run_id: str, **fields: Any) -> None:
+        # Invariant (R5-01f): a run with a committed simulated action can never be recorded as cancelled or
+        # rejected. Enforced at the lowest write level, inside the caller's transaction, for every path.
+        if fields.get("status") in ("cancelled", "rejected") and Store._committed_action_ids(c, run_id):
+            raise Conflict("action_already_committed", "a simulated action is already committed for this run; "
+                           "it cannot be recorded as cancelled or rejected. Recover to reconcile it.",
+                           action_ids=Store._committed_action_ids(c, run_id))
         cols = {}
         for k, v in fields.items():
             if k in ("plan", "result", "demo_fault"):
@@ -453,6 +471,8 @@ class Store:
                 raise Forbidden("separation_of_duties", "the requester of a run cannot approve, reject or revise it")
             if run["status"] != "awaiting_approval":
                 raise Conflict("run_not_awaiting_approval", f"run is {run['status']!r}", status=run["status"])
+            if decision in ("cancel", "reject") and self._committed_action_ids(c, run_id):
+                raise Conflict("action_already_committed", "a simulated action is already committed for this run")
             prop = c.execute("SELECT * FROM proposals WHERE proposal_id=?", (proposal_id,)).fetchone()
             if prop is None:
                 raise NotFound("proposal_not_found", f"no proposal with id {proposal_id!r}")
@@ -540,17 +560,17 @@ class Store:
             if row is None:
                 raise NotFound("run_not_found", f"no run with id {run_id!r}")
             status = row["status"]
+            committed = self._committed_action_ids(c, run_id)
             if status == "cancelled":
                 outcome = "already_cancelled"
             elif status in ("completed", "rejected"):
                 raise Conflict("run_terminal", f"run is already {status!r}", status=status)
+            elif committed:
+                # every acceptance path (queued, running incl. a claimed recovery, failed, interrupted, gate)
+                raise Conflict("action_already_committed",
+                               "a simulated action was already committed for this run; it cannot be cancelled "
+                               "as if nothing happened. Recover to reconcile it.", action_ids=committed)
             elif status in ("failed", "interrupted"):
-                committed = c.execute("SELECT action_id FROM sim_actions WHERE run_id=?", (run_id,)).fetchall()
-                if committed:
-                    raise Conflict("action_already_committed",
-                                   "a simulated action was already committed for this run; it cannot be cancelled "
-                                   "as if nothing happened. Recover to reconcile it.",
-                                   action_ids=[r["action_id"] for r in committed])
                 open_props = c.execute("SELECT proposal_id, status FROM proposals WHERE run_id=? AND status IN "
                                        "('pending','approved')", (run_id,)).fetchall()
                 c.execute("UPDATE proposals SET status='cancelled' WHERE run_id=? AND status IN ('pending','approved')",

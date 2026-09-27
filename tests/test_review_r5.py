@@ -245,3 +245,54 @@ def test_r5_02_recover_on_finished_checkpoint_does_not_leave_run_running(h):
     assert d["status"] != "running"
     assert d["status"] == "completed" and len(h.actions(rid)) == 1
     assert any(e["kind"] == "recover_plan" and "finished" in e["data"]["action"] for e in d["events"])
+
+
+def test_r5_01f_cancel_during_recovery_of_committed_action_is_refused(settings):
+    """Follow-up review of 3860c12: crash AFTER the ledger commit -> restart -> Recover claims the run
+    (status running) -> pause the recovery job -> cancel. The committed-action check must apply to every
+    cancel acceptance path, and the final state must never claim 'No action executed'."""
+    h = Harness(settings, crash_hook=crash_once("after_commit"))
+    try:
+        rid = h.create()
+        prop = h.pending(rid)
+        with pytest.raises(SimulatedCrash):
+            h.runner.decide(rid, proposal_id=prop["proposal_id"], revision=1, proposal_sha256=prop["sha256"],
+                            decision="approve", comment="", changes=None, idempotency_key=key(), actor="bob",
+                            role="approver")
+        h.restart()
+        assert h.status(rid) == "interrupted" and len(h.actions(rid)) == 1
+        pause = Pause()
+        original = h.runner._recover_locked
+
+        def paused_recovery(run_id):
+            pause.hold()             # run is claimed (status running) but recovery has not resumed the graph
+            return original(run_id)
+        h.runner._recover_locked = paused_recovery
+        assert h.client.post(f"/api/runs/{rid}/recover", headers=APPROVER).status_code == 202
+        assert pause.entered.wait(WAIT)
+        assert h.status(rid) == "running"
+        c = h.client.post(f"/api/runs/{rid}/cancel", json={"idempotency_key": key()}, headers=APPROVER)
+        pause.release.set()
+        h.runner.wait(rid)
+        h.runner._recover_locked = original
+        d = h.detail(rid)
+        assert c.status_code == 409 and c.json()["error"] == "action_already_committed", c.text
+        assert d["status"] == "completed" and len(h.actions(rid)) == 1
+        assert "No action executed" not in json.dumps(d["result"])
+        assert d["cancel_requested"] is False
+    finally:
+        h.stop()
+
+
+def test_r5_01f_store_invariant_committed_action_cannot_be_cancelled_or_rejected(h):
+    rid = h.create()
+    assert h.decide(rid).status_code == 200 and len(h.actions(rid)) == 1
+    for status in ("cancelled", "rejected"):
+        with pytest.raises(Exception) as e:
+            h.runner.store.transition(rid, None if status == "cancelled" else {"completed"}, status)
+        assert getattr(e.value, "code", "") in ("action_already_committed", "invalid_transition")
+    with h.runner.store.tx() as c:  # even a direct low-level write is refused
+        with pytest.raises(Exception) as e:
+            h.runner.store._set(c, rid, status="cancelled")
+    assert e.value.code == "action_already_committed"
+    assert h.status(rid) == "completed"

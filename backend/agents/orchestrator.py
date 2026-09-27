@@ -35,6 +35,7 @@ from langgraph.types import Command, interrupt
 
 from backend.agents import REGISTRY
 from backend.config import Settings
+from backend.datalock import DataDirLock, ensure_marker
 from backend.contracts import Plan, PlanStep, _ancestors, topological_order
 from backend.errors import BadRequest, Conflict, Forbidden, NotFound, TooLarge, TooManyRequests
 from backend.grounding import answer_question
@@ -69,6 +70,9 @@ class WorkflowRunner:
     def __init__(self, settings: Settings, *, provider: Provider | None = None, crash_hook=None):
         self.settings = settings
         settings.data_dir.mkdir(parents=True, exist_ok=True)
+        # shared lifetime lock: scripts/reset_demo_data.py cannot reset this directory while we run (R5-04)
+        self._data_lock = DataDirLock(settings.data_dir, exclusive=False)
+        ensure_marker(settings.data_dir)
         self.store = Store(settings.store_path)
         self.provider = provider or build_provider(settings)
         if crash_hook is None and settings.is_demo and settings.demo_crash_point:
@@ -89,6 +93,7 @@ class WorkflowRunner:
         self._executor.shutdown(wait=True, cancel_futures=False)
         self._cp_conn.close()
         self.store.close()
+        self._data_lock.release()
 
     # ------------------------------------------------------------------ helpers
     def _config(self, run: dict) -> dict:

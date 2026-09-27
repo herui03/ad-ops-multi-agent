@@ -4,7 +4,10 @@ import Citation from './Citation';
 
 export default function AnswerCard({ answer }) {
   return (
-    <Card testid="answer-card" title="Grounded answer" right={<Pill value={answer.outcome} testid="answer-outcome" />}>
+    <Card testid="answer-card" title="Source lookup (unverified keyword match)" right={<Pill value={answer.outcome} testid="answer-outcome" />}>
+      <p className="mb-2 rounded border border-amber-400 bg-amber-50 p-2 text-[11px] font-medium text-amber-900" data-testid="unverified-warning">
+        {answer.warning || 'Keyword matching does not verify that an excerpt answers your question. Human review required.'}
+      </p>
       <p className="break-words text-sm" data-testid="answer-text">{answer.answer_text}</p>
       <p className="mt-1 text-[11px] text-slate-500">Method: {answer.method}. Reason: <Mono>{answer.reason}</Mono></p>
       {answer.citations.length > 0 && (

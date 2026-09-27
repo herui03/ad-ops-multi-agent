@@ -192,6 +192,26 @@ def _best_sentences(c: Chunk, q_terms: set[str], limit: int = 2) -> list[str]:
     return [sents[i] for i in keep]
 
 
+# Provenance facts (who approved / authored / signed a document, when it was approved or published, its change
+# history) can only come from explicit document metadata. The corpus front matter carries doc_id, title, version,
+# effective, kind, trust and note, and none of these fields records an author, approver, signatory or approval or
+# publication event. Such questions therefore abstain, rather than mapping e.g. an "approver role" policy rule onto a
+# historical named approver.
+METADATA_FIELDS = ("doc_id", "title", "version", "effective", "kind", "trust", "note")
+PROVENANCE_PATTERNS = [re.compile(p, re.I) for p in (
+    r"\bwho\b[^?.]*\b(approved|authored|wrote|written|signed|drafted|reviewed|published|issued|created|owns)\b",
+    r"\b(who is|who was|who are|name of)\b[^?.]*\b(author|approver|owner|signatory|reviewer|publisher)\b",
+    r"\bwhen (was|were|did)\b[^?.]*\b(approved|authored|written|signed|drafted|reviewed|published|issued|released|"
+    r"created|changed|updated)\b",
+    r"\b(approval|publication|release|signing|review) date\b",
+    r"\b(revision|change|version) history\b",
+)]
+
+UNVERIFIED_LABEL = "UNVERIFIED SOURCE EXCERPTS: keyword match, human review required"
+WARNING = ("Keyword matching found these excerpts. It does not verify that they answer your question: a relevant-looking "
+           "quote can still answer a different question. Read the source before relying on it.")
+
+
 def _split_question(question: str) -> tuple[str, list[str]]:
     """Drop instruction-like sentences from the question before matching; they are reported, not obeyed."""
     parts = [p for p in re.split(r"(?<=[.!?])\s+", question.strip()) if p]
@@ -224,9 +244,9 @@ def answer_question(question: str, corpus: Corpus | None = None) -> dict:
     corpus = corpus or get_corpus()
     kept, ignored = _split_question(question)
     q_terms = set(terms(kept))
-    base = {"question": question, "method": "extractive TF-IDF (no language model)", "citations": [],
+    base = {"question": question, "method": "extractive TF-IDF keyword match (no language model)", "citations": [],
             "candidate_evidence": [], "excluded_sources": [], "retrieval": [],
-            "ignored_question_text": ignored}
+            "ignored_question_text": ignored, "verified": False, "warning": WARNING}
     if not q_terms:
         return {**base, "outcome": "abstained",
                 "reason": "only_instruction_like_text" if ignored else "no_content_terms",
@@ -237,6 +257,14 @@ def answer_question(question: str, corpus: Corpus | None = None) -> dict:
     base["excluded_sources"] = [{"chunk_id": c.chunk_id, "reason": "instruction-like text in source; treated as "
                                  "data and excluded from evidence"} for c in excluded]
     usable = [(s, c) for s, c in hits if not c.injection_suspected]
+    if any(p.search(kept) for p in PROVENANCE_PATTERNS):
+        return {**base, "outcome": "abstained",
+                "reason": "provenance_metadata_unavailable (the question asks who approved/authored a document or when "
+                          f"such an event happened; corpus metadata only has {', '.join(METADATA_FIELDS)})",
+                "candidate_evidence": _candidates(usable, q_terms) if usable and usable[0][0] >= MIN_SCORE else [],
+                "answer_text": "The sources have no metadata recording who approved or authored a document, or when, "
+                               "so this is not answered. Policy text about approval roles is not a record of a "
+                               "historical approver."}
     if not usable or usable[0][0] < MIN_SCORE:
         return {**base, "outcome": "abstained", "reason": "insufficient_evidence",
                 "answer_text": "The policy corpus does not contain enough evidence to answer this. "
@@ -277,8 +305,8 @@ def answer_question(question: str, corpus: Corpus | None = None) -> dict:
               "fictional-brand": "Source is fictional brand guidance.",
               "unverified-summary": "Source is an unverified paraphrase, not current official text or legal advice.",
               "unverified-vendor-note": "Source is an unreviewed, untrusted vendor note."}.get(top.kind, "")
-    return {**base, "outcome": "answered", "reason": f"best match {top.chunk_id} (score {top_score:.2f}, "
-            f"coverage {coverage:.0%}, quoted-text support {support:.0%})", "answer_text": f"{text} {caveat}".strip(),
+    return {**base, "outcome": "unverified_excerpts", "label": UNVERIFIED_LABEL, "reason": f"best match {top.chunk_id} (score {top_score:.2f}, "
+            f"coverage {coverage:.0%}, quoted-text support {support:.0%})", "answer_text": f"{UNVERIFIED_LABEL}. {text} {caveat}".strip(),
             "citations": cites}
 
 

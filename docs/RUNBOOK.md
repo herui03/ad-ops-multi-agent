@@ -92,11 +92,17 @@ A marker file `data/.crash_drill_fired` stops the drill from firing twice. Delet
 
 ## 8. Reset (explicit, separate)
 
-Reset is never automatic. Stop the server first.
+Reset is never automatic. It refuses, and changes nothing, in any of these cases:
+
+* the backend is running: a shared lifetime lock sits next to the data directory at `.<name>.adops.lock`, and reset needs it exclusively;
+* the target is the filesystem root, your home directory, the source checkout, or any repository path other than `./data`;
+* the target lacks the app's `.adops-data-marker`, or contains anything other than the app's databases, WAL/SHM files and markers.
+
+Aliases (symlinks, `..`) are resolved first. Archives get a unique name down to the microsecond, plus a random suffix, and never nest or overwrite. Linux is tested; macOS is untested.
 
 ```bash
 python scripts/reset_demo_data.py                     # refuses without --confirm
-python scripts/reset_demo_data.py --confirm           # moves ./data to ./data-archive-<UTC>/ (history kept)
+python scripts/reset_demo_data.py --confirm           # renames ./data to a unique ./data-archive-<UTC µs>-<random>/ (history kept)
 python scripts/reset_demo_data.py --confirm --delete  # permanent delete
 ```
 
