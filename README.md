@@ -1,38 +1,57 @@
-# Ad Ops Approval Gate: a reliability-first multi-agent prototype
+# Ad Ops Approval Gate
 
 [![tests](https://github.com/herui03/ad-ops-multi-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/herui03/ad-ops-multi-agent/actions/workflows/tests.yml)
 
-A request such as *"plan a year-end campaign for Harbourlight Hotel with a S$80,000 budget"* goes to a LangGraph workflow. The workflow validates a plan, runs specialist agents step by step, and assembles a proposal. It then **stops at a durable human approval gate**. Only an approver's decision on that exact proposal revision and hash lets a *simulated* action through. The gate survives server restarts, duplicate clicks, stale revisions, provider failures and crashes near the action.
+Advertising-operations teams turn a client brief into a media plan, ad copy and a policy check, and a manager signs off before budget is committed. This project automates the drafting with a LangGraph multi-agent workflow and makes the sign-off enforceable. The workflow pauses at a durable approval gate, and a (simulated) action runs only after an approver accepts the exact proposal revision they reviewed. In the test suite, restarts, double clicks, stale revisions, provider failures and crashes near the action neither bypassed the gate nor produced a second action. That result rests on the local SQLite transaction design of the simulated ledger; it is not a general guarantee for external systems.
 
-> **What this is:** a portfolio prototype built on a **simulated** advertising-operations use case.
-> **What it is not:** a deployment for any real client or employer, a real ad-platform integration, or anything that spends money.
->
-> The platform is the fictional **"SimAds sandbox"**. Clients (Harbourlight Hotel, NovaByte) are fictional. Policy documents are fictional or unverified summaries. No affiliation with any advertising platform or company is implied.
->
-> **Credits:** Herui directed the project; Claude (AI coding assistant) implemented and tested it; Codex independently reviewed the baseline source. See [docs/DEFECT_LOG.md](docs/DEFECT_LOG.md).
+It runs offline by default with a deterministic demo provider. The ad platform, clients and actions are simulated; see [Scope and limits](#scope-and-limits).
 
 ![Proposal paused at the approval gate](docs/screenshots/01-awaiting-approval.png)
 
-## The problem it models
+## What it does
 
-An ad-ops team turns a client brief into a media plan, ad copy and a policy check, and a manager signs off before money moves. Letting AI agents draft that package is easy. The hard part is making the sign-off **real**:
+- **Plans and validates the work.** A planner splits the request into steps for six specialist agents. The plan must form a valid dependency graph, and each agent's output must match a strict schema.
+- **Pauses for approval.** The result is a proposal with an id, a revision number and a sha256 fingerprint. The run waits in a LangGraph checkpoint (`interrupt()` + SQLite) and survives server restarts.
+- **Enforces decisions on the server.**
+  - Approve, reject and revise require the approver role; the requester cannot approve their own run.
+  - Stale revisions, mismatched hashes and IDs from other runs are refused.
+  - A double click or retried request executes at most once (idempotency keys).
+- **Blocks non-compliant copy.** A rule engine and a compliance agent flag claims such as "best", each citing the policy passage it relies on. A blocked proposal must be revised before it can be approved.
+- **Handles failures explicitly.**
+  - Provider calls have timeouts and a bounded number of attempts; a failed step leaves the run `failed` with an error code.
+  - *Recover* resumes from the last checkpoint without re-running finished steps or repeating a committed action.
+  - Cancel is refused once an action is committed.
+- **Looks up policy text.** It returns verbatim excerpts with citations that resolve to a document, version, section and hash. It abstains when support is weak, reports when sources conflict, and ignores sources that contain injected instructions. Results are labelled as unverified keyword matches for human review.
+- **Web UI.** Live run status and event history, decision history, JSON/CSV export, a dashboard computed from stored runs, and a mobile layout.
 
-- nothing executes before approval;
-- the approval covers exactly what was reviewed;
-- a restart or double click cannot skip the gate or repeat the action;
-- failures show up as failures, not as confident output.
+## Example
 
-This repository focuses on that part. Agent count is not the point.
+1. A requester submits *"Plan a year-end campaign for Harbourlight Hotel with a S$80,000 budget."*
+2. Four agents (insight → strategy → creative → compliance) draft the plan, checkpointing after each step.
+3. The proposal appears as revision 1, awaiting approval. The simulated ledger still has 0 actions.
+4. The approver approves revision 1, and exactly one simulated launch is written to the ledger. A double click changes nothing.
+5. If the server is killed while the run waits, the same run is still waiting after restart. If it crashes right after the action is written, *Recover* detects the existing record instead of writing a second one.
 
-## Quick start (offline, no key)
+| One simulated action after approval | Blocked copy must be revised | Crash recovered without a duplicate |
+|---|---|---|
+| ![approved](docs/screenshots/03-approved-simulated-action.png) | ![blocked](docs/screenshots/05-blocked-by-compliance.png) | ![recovered](docs/screenshots/11-recovered-replay-detected.png) |
+
+The walkthrough is in [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) (3 minutes). All screenshots are in [docs/screenshots/](docs/screenshots/). A recorded replay of the browser test run is at [docs/replay/index.html](docs/replay/index.html); it is a static page, so open it locally from a clone.
+
+## Quick start
+
+Requires Python 3.11+ (3.12 recommended) and Node.js 20+.
 
 ```bash
-./scripts/start.sh            # creates .venv, installs, builds the UI once, serves http://127.0.0.1:8000
+./scripts/start.sh            # creates .venv, installs dependencies, builds the UI once, serves http://127.0.0.1:8000
 ```
 
-The default provider is **deterministic demo rules**, not a language model. It is labelled in the UI and API. No API key or network is needed after install. Mac and manual steps, the optional live provider, recovery and reset are in [docs/RUNBOOK.md](docs/RUNBOOK.md). There is also a terminal-only walkthrough: `python scripts/demo_cli.py`.
+No API key or network is needed after installation. Manual and Mac steps, the optional live Groq provider, recovery procedures and data reset are in [docs/RUNBOOK.md](docs/RUNBOOK.md).
 
-Until the PR is merged, use branch `claude/wonderful-cerf-efuysu`.
+```bash
+python scripts/demo_cli.py    # the same flow in the terminal
+pytest -q -rs                 # backend tests (offline)
+```
 
 ## How it works
 
@@ -48,89 +67,75 @@ plan ─► step ⟲ ─► build_proposal ─► approval_gate (interrupt) ─�
                          └──── revise ───────┤─ cancel ─► cancelled
 ```
 
-Details, state diagrams, the transaction boundary and the design rationale are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
-| Guarantee | Mechanism | Proof |
+| Control | Mechanism | Tests |
 |---|---|---|
-| Action count stays 0 until approval | `interrupt()` at the gate. The simulator re-checks for an approve decision on the exact id, revision and hash, inside the same transaction as the ledger insert | `test_ac1_*`, `test_simulator_refuses_without_recorded_approval` |
-| Pending survives a restart; the same run resumes | SQLite checkpointer with a stable `thread_id`; startup reconciliation | `test_ac2_*`; E2E kills the real server |
-| One click wins; duplicates replay | One `BEGIN IMMEDIATE` transaction for all checks plus the status change; idempotency keys with a request hash | `test_ac4_*` (8 concurrent threads) |
-| An accepted cancel always wins; a committed action is never hidden | `Store.finish` / `settle_gate` honour an accepted cancel atomically. Every cancel path, including a claimed recovery, refuses with 409 once an action is committed, and the store refuses any `cancelled`/`rejected` write for a run with a ledger row. One atomic recovery claim | `test_r5_01_*`, `test_r5_02_*` (barrier-forced races) |
+| No action before approval | `interrupt()` at the gate; the simulator re-checks for an approve decision on the exact id, revision and hash in the same transaction as the ledger insert | `test_ac1_*`, `test_simulator_refuses_without_recorded_approval` |
+| A pending run survives a restart | SQLite checkpointer with a stable `thread_id`; startup reconciliation | `test_ac2_*`; E2E kills the real server |
+| One decision wins; duplicates replay | One `BEGIN IMMEDIATE` transaction for checks and the status change; idempotency keys with a request hash | `test_ac4_*` (8 concurrent threads) |
 | Stale, forged or cross-run decisions fail | Current-revision, sha256 and run-ownership checks | `test_ac5_*`, `test_ac6_*` |
+| Accepted cancels win; committed actions are never hidden | Cancel-aware terminal writes; every cancel path refuses with 409 once an action is committed; atomic recovery claim | `test_r5_01_*`, `test_r5_02_*` |
 | A crash near the action does not duplicate it | Ledger row keyed `run:proposal:revision`; replay detection on Recover | `test_ac10_*`; E2E process exit after commit |
-| Failures are bounded and honest | Per-call timeout, 2 attempts, strict schemas, `failed` status with a code; dependents never run | `test_ac8_*`, `test_invalid_plan_dag_*` |
+| Failures are bounded and reported | Per-call timeout, 2 attempts, strict schemas, `failed` status with a code; dependent steps never run | `test_ac8_*`, `test_invalid_plan_dag_*` |
 | Model or source text cannot open the gate | The gate is code policy by workflow type; injected sources are excluded; citations must resolve | `test_ac12_*` |
 
-## The six specialist agents
+State diagrams, the transaction boundary and design rationale: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Each agent is a spec: a system prompt (live mode), a strict Pydantic output contract, and the upstream outputs it may read. Demo mode uses deterministic generators with the same output shapes.
+### Specialist agents
 
-| Agent | Produces | Validation beyond the schema |
+Each agent has a system prompt (live mode), a strict Pydantic output contract, and a defined set of upstream outputs it may read. Demo mode uses deterministic generators with the same output shapes.
+
+| Agent | Produces | Checks beyond the schema |
 |---|---|---|
 | insight | client/audience profile, mock benchmarks | — |
-| strategy | budget, schedule, placement split | percentages must sum to 100; the end date cannot precede the start |
+| strategy | budget, schedule, placement split | percentages sum to 100; end date not before start |
 | creative | ad copy per placement | unique creative ids |
-| compliance | findings with a severity and a citation | every citation must resolve to a retrieved, non-flagged corpus chunk; a deterministic rule engine also runs as a backstop |
+| compliance | findings with severity and citation | citations must resolve to a retrieved, non-flagged corpus chunk; a deterministic rule engine also runs |
 | analytics | anomalies against mock benchmarks, recommended budget shift | — |
-| ci | illustrative channel comparison, talking points | — (the prompt forbids unsourced figures; this is not validated) |
+| ci | illustrative channel comparison, talking points | — |
 
-Gated workflows: **campaign_launch** (simulated launch) and **performance_review** (simulated budget shift). **pitch_support** produces a deliverable only, so it has nothing to approve.
+The workflows *campaign_launch* (simulated launch) and *performance_review* (simulated budget shift) go through the approval gate. *pitch_support* produces a document only and needs no approval.
 
-## Grounding (RAG): what it actually is
+### Policy lookup
 
-The corpus is 7 small documents, 37 section chunks, each with a stable id and a sha256. Retrieval is TF-IDF keyword matching with cosine similarity. Output is **extractive only**: verbatim sentences with citations that resolve to document, version, section and hash.
+The corpus has 7 documents split into 37 section chunks, each with a stable id and a sha256. Retrieval is TF-IDF keyword matching. Output is extractive:
+- verbatim sentences with resolvable citations, labelled `unverified_excerpts`;
+- otherwise `abstained`, with any closest candidate evidence listed separately;
+- or `conflict`, when sources tagged with the same topic disagree anywhere in the corpus.
 
-> **Output is UNVERIFIED SOURCE EXCERPTS, not verified answers.** A successful lookup is labelled `unverified_excerpts` ("keyword match, human review required"), and every result shows a warning that a relevant-looking quote can still answer a different question.
+Questions about who approved or authored a document abstain, because no source records that metadata. Method and results: [docs/EVALUATION.md](docs/EVALUATION.md).
 
-- It **abstains** when evidence is weak.
-- It **reports a conflict** when two sources tagged with the same topic disagree.
-- It **excludes** chunks containing instruction-like text.
-- It **abstains on provenance questions** (who approved or authored a document, when it was approved or published), because no source metadata records those facts.
+## Validation
 
-The quoted sentences themselves must support the question, otherwise it abstains and lists *candidate evidence* labelled "not an answer". Conflicts are checked across the whole corpus.
-
-Evaluation history:
-
-- Round 1 held-out: **19/23** (frozen).
-- After the round-5 guards, a **new** held-out set written after freezing the answerer: **21/24** (frozen). That run included one unsafe answer (N-U7, a question about who approved a document).
-- The follow-up provenance rule now makes N-U7 abstain, so the round-5 set is a regression set (22/24) and 21/24 remains the last held-out figure.
-
-There is no claim of semantic grounding. See [docs/EVALUATION.md](docs/EVALUATION.md). A citation shows where a sentence came from; it is not legal approval or current law.
-
-## Verified results
-
-| What | Command | Result |
+| Check | Command | Result |
 |---|---|---|
-| Backend tests | `pytest -q -rs` | 114 passed, 1 skipped: the live-provider test is **NOT RUN** without `GROQ_API_KEY` |
-| Browser E2E | `node e2e/run_e2e.mjs` | 16/16 checks: approval, role denial, rejection, revision, process kill while pending, crash after commit then cancel refused then Recover, provider failure then Recover, answers and candidate evidence, unsafe text, dashboard, mobile at 390 px |
-| Grounding eval | `python scripts/run_eval.py [--cases …]` | held-out: round 1 19/23, round 5 21/24 (both frozen); regression after the follow-up: 22/23 and 22/24 |
-| Baseline defects | `scripts/repro_baseline_defects.py` | 13/13 reproduced on the original code, each mapped to a fixing test |
-| Reset safety (R5-04) | `pytest tests/test_reset.py` | old `3860c12`: 9 failed / 1 passed (reset archived a live server's data, nested same-second archives, moved and deleted unrelated folders); fixed 10/10. Linux tested, macOS untested |
-| Review round 5 races | `pytest tests/test_review_r5.py` | old code `c149c38`: 8 failed / 2 passed; follow-up case on `3860c12`: failed (cancel accepted despite a committed action); fixed: 12/12, and 0 failures in 25 repeats |
+| Backend tests | `pytest -q -rs` | 114 passed, 1 skipped (the live-provider test needs `GROQ_API_KEY`) |
+| Browser end-to-end | `node e2e/run_e2e.mjs` | 16/16 checks against a real server process (approval, role denial, rejection, revision, kill while pending, crash after commit then recovery, provider failure then recovery, policy lookup, unsafe text, dashboard, 390 px mobile) |
+| Policy lookup | `python scripts/run_eval.py [--cases …]` | held-out, frozen before later fixes: 19/23 (round 1), 21/24 (round 5); the same cases reused as regression after the fixes: 22/23, 22/24 |
+| Original prototype defects | `scripts/repro_baseline_defects.py` | 13/13 reproduced on the original code, each mapped to a fixing test |
 
-Evidence, screenshots and a recorded replay are in [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md). All results come from developer runs in a Linux container. They are not stakeholder acceptance testing. Live language-model behaviour was not tested.
+Per-case results, screenshots and logs: [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md). Defects found in review and their fixes: [docs/DEFECT_LOG.md](docs/DEFECT_LOG.md).
 
-## Limitations
+## Scope and limits
 
-- **Simulated only.** There is no ad-platform client. "Execute" writes a row to a local ledger. Exactly-once delivery to an external system is **not** claimed (see ARCHITECTURE.md).
-- **Demo roles are not authentication.** They are self-declared headers, enforced server-side for rules such as approver-only decisions and separation of duties. Read endpoints are open. Keep the server on localhost.
-- **Single process.** Per-run locks are in-process. Several workers would need database leases.
-- **Lexical retrieval.** It misses paraphrases and can still quote an on-topic sentence that does not answer the question (N-S1). Output is therefore labelled unverified. The conflict check only sees conflicts tagged in the corpus.
-- **Deterministic demo provider.** It shows the control flow, not intelligence. The live Groq path is wired and unit-tested with a fake HTTP layer, but it has not been run.
+- **Data.** The ad platform ("SimAds sandbox") and the clients Harbourlight Hotel and NovaByte are fictional; campaign figures and benchmarks are mock data. The policy corpus mixes fictional policies with unverified paraphrases of public frameworks (e.g. FTC, UK CAP Code) and public platform policies. Nothing is affiliated with any real platform or company, and a citation is not legal advice.
+- **Actions.** "Execute" writes a row to a local simulated ledger. There is no ad-platform integration and no spend, and exactly-once delivery to an external system is not claimed.
+- **Access.** Demo roles are self-declared request headers, enforced server-side but not authentication. Run locally only.
+- **Deployment.** Single process. The data-directory lock uses POSIX `flock` (tested on Linux, untested on macOS, Windows unsupported).
+- **Language models.** The default provider is deterministic rules. The optional Groq provider is covered by offline wiring tests only and has not been run against the live API.
+- **Policy lookup.** Matching is lexical: it can miss paraphrases, and a relevant excerpt can still answer a different question.
+- **Validation.** All results are developer-run tests in a Linux container. No user acceptance testing with real users has been done.
 
 ## Documentation
 
 | Doc | Contents |
 |---|---|
-| [HR_OVERVIEW.md](docs/HR_OVERVIEW.md) | 60-second overview for non-engineers |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | components, state and graph diagrams, decision path, transaction boundary, rationale |
-| [RUNBOOK.md](docs/RUNBOOK.md) | Mac start, checks, live provider, gate operation, failure and recovery SOP, crash drill, explicit reset |
-| [ACCEPTANCE.md](docs/ACCEPTANCE.md) | 16 acceptance cases → tests → evidence |
-| [DEFECT_LOG.md](docs/DEFECT_LOG.md) | reproduced baseline defects with reviewer attribution, and issues found during the work |
-| [EVALUATION.md](docs/EVALUATION.md) | grounding method, held-out results, failures |
+| [HR_OVERVIEW.md](docs/HR_OVERVIEW.md) | one-page summary |
 | [DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | 3-minute demo |
-| [INTERVIEW_GUIDE_zh.md](docs/INTERVIEW_GUIDE_zh.md) | 中文面试指南：15 个难题 |
-| [CV_TEMPLATES.md](docs/CV_TEMPLATES.md) | conditional CV bullets |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | components, state and graph diagrams, decision path, transaction boundary, rationale |
+| [RUNBOOK.md](docs/RUNBOOK.md) | setup (incl. Mac), checks, live provider, operating the gate, failure recovery, reset |
+| [ACCEPTANCE.md](docs/ACCEPTANCE.md) | 16 acceptance cases mapped to tests and evidence |
+| [EVALUATION.md](docs/EVALUATION.md) | policy-lookup method, results, failure analysis |
+| [DEFECT_LOG.md](docs/DEFECT_LOG.md) | reproduced defects and their fixes |
 
 ## Project layout
 
@@ -144,19 +149,20 @@ backend/
   grounding.py             corpus, TF-IDF retrieval, extractive answers, citations
   simulator.py             simulated action executor (transaction boundary)
   providers.py             demo / Groq providers, fault injection, bounded call policy
+  datalock.py              data-directory lifetime lock
   demo_generators.py       deterministic demo outputs;  tools/  mock data + analytics helpers
   main.py                  FastAPI routes, read-only WebSocket, exports
-frontend/src/              React UI (runs, proposal and decisions, recovery, answers, dashboard, sources)
-rag_documents/             labelled corpus;  eval/  held-out cases (read only by scripts/run_eval.py)
+frontend/src/              React UI (runs, proposals and decisions, recovery, lookups, dashboard, sources)
+rag_documents/             labelled policy corpus;  eval/  evaluation cases (read only by scripts/run_eval.py)
 tests/                     offline suite;  tests/live/  opt-in live test
-e2e/                       Chromium E2E driver + recorded-replay builder
+e2e/                       Chromium end-to-end driver + recorded-replay builder
 scripts/                   start.sh, demo_cli.py, run_eval.py, reset_demo_data.py, repro_baseline_defects.py
 docs/                      docs above + evidence/, screenshots/, replay/
 ```
 
 ## Background
 
-Originally built for the BC3415 course project at NTU; reworked here as a reliability portfolio piece.
+Originally built for the BC3415 course project at NTU, then rebuilt around the approval gate.
 
 ---
 
