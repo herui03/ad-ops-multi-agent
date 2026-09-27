@@ -1,5 +1,5 @@
-# command: python -m pytest -v -rs   (Python 3.12.3, clean venv from requirements.txt, no GROQ_API_KEY, demo provider)
-# run by Claude in the session container, 2026-09-27
+# command: python -m pytest -v -rs   (Python 3.12.3, venv from requirements.txt, no GROQ_API_KEY, demo provider)
+# run by Claude in the session container, 2026-09-27, after review round 5 fixes
 tests/live/test_live_provider.py::test_live_campaign_reaches_gate_or_fails_honestly SKIPPED
 tests/test_api.py::test_ac13_user_text_is_stored_verbatim_and_exported_safely PASSED
 tests/test_api.py::test_ac14_full_demo_runs_without_key_or_network PASSED
@@ -55,7 +55,7 @@ tests/test_gate.py::test_planner_llm_flag_is_not_the_gate PASSED
 tests/test_gate.py::test_simulator_refuses_without_recorded_approval PASSED
 tests/test_grounding.py::test_corpus_integrity_and_labels PASSED
 tests/test_grounding.py::test_policy_rule_citations_resolve PASSED
-tests/test_grounding.py::test_ac11_dev_cases[Do price claims need a validity period?-answered-simads-ad-policy@2.1#price-claims] PASSED
+tests/test_grounding.py::test_ac11_dev_cases[Do price claims need a validity period?-conflict-simads-ad-policy@2.1#price-claims] PASSED
 tests/test_grounding.py::test_ac11_dev_cases[Who must approve a campaign launch?-answered-simads-ad-policy@2.1#launch-approval] PASSED
 tests/test_grounding.py::test_ac11_dev_cases[Is guaranteed upgrade wording allowed?-answered-simads-ad-policy@2.1#guarantees] PASSED
 tests/test_grounding.py::test_ac11_dev_cases[How long can short videos be?-answered-simads-creative-specs@1.0#video-length] PASSED
@@ -65,6 +65,10 @@ tests/test_grounding.py::test_ac11_dev_cases[What is the weather in Singapore to
 tests/test_grounding.py::test_ac11_dev_cases[What is the maximum daily budget for TikTok ads in Japan?-abstained-None] PASSED
 tests/test_grounding.py::test_ac11_dev_cases[How much of an image can be covered by text overlay?-conflict-simads-ad-policy@2.1#text-in-image] PASSED
 tests/test_grounding.py::test_ac11_dev_cases[Can we lead the headline with a from price and leave dates off?-conflict-harbourlight-brand@1.3#price-messaging] PASSED
+tests/test_grounding.py::test_r5_03_quoted_text_must_support_the_answer PASSED
+tests/test_grounding.py::test_r5_03_conflict_check_covers_unretrieved_sources PASSED
+tests/test_grounding.py::test_r5_03_instruction_like_question_text_is_ignored_and_reported PASSED
+tests/test_grounding.py::test_candidate_evidence_never_accompanies_an_answer PASSED
 tests/test_grounding.py::test_ac12_injected_source_is_excluded_from_evidence PASSED
 tests/test_grounding.py::test_answers_are_verbatim_quotes_only PASSED
 tests/test_grounding.py::test_ac15_production_code_never_references_gold_labels PASSED
@@ -83,5 +87,15 @@ tests/test_restart.py::test_ac10_crash_after_decision_recorded_before_graph_resu
 tests/test_restart.py::test_crash_mid_agents_resumes_from_last_checkpoint_without_rerunning_done_steps PASSED
 tests/test_restart.py::test_restart_while_queued_or_running_is_explicit_not_silent PASSED
 tests/test_restart.py::test_durable_history_survives_restart PASSED
+tests/test_review_r5.py::test_r5_01_cancel_during_question_planner_is_not_completed PASSED
+tests/test_review_r5.py::test_r5_01_cancel_during_last_step_of_deliverable_is_not_completed PASSED
+tests/test_review_r5.py::test_r5_01_cancel_during_last_campaign_step_never_reaches_gate PASSED
+tests/test_review_r5.py::test_r5_01_cancel_between_proposal_and_interrupt_never_executes PASSED
+tests/test_review_r5.py::test_r5_01_simulator_refuses_a_cancelled_run PASSED
+tests/test_review_r5.py::test_r5_01_cancel_after_committed_action_is_refused_not_hidden PASSED
+tests/test_review_r5.py::test_r5_01_cancel_after_recorded_but_unexecuted_approve_stays_cancelled PASSED
+tests/test_review_r5.py::test_r5_02_concurrent_recover_claims_once PASSED
+tests/test_review_r5.py::test_r5_02_transition_is_strict_unless_marked_idempotent PASSED
+tests/test_review_r5.py::test_r5_02_recover_on_finished_checkpoint_does_not_leave_run_running PASSED
 SKIPPED [1] tests/live/test_live_provider.py:21: NOT RUN: GROQ_API_KEY not set; live LLM behaviour was not tested
-======================== 82 passed, 1 skipped in 7.98s =========================
+======================== 96 passed, 1 skipped in 11.36s ========================

@@ -32,7 +32,10 @@ def check_case(case: dict, result: dict) -> list[str]:
     if result["outcome"] not in case["expected_outcome"]:
         failures.append(f"outcome {result['outcome']!r} not in {case['expected_outcome']}")
     cited = [c["chunk_id"] for c in result["citations"]]
-    for c in result["citations"]:
+    candidates = [c["chunk_id"] for c in result.get("candidate_evidence", [])]
+    if result["outcome"] != "abstained" and candidates:
+        failures.append("candidate evidence attached to a non-abstained outcome")
+    for c in result["citations"] + result.get("candidate_evidence", []):
         chunk = corpus.by_id.get(c["chunk_id"])
         if chunk is None:
             failures.append(f"citation {c['chunk_id']} does not resolve")
@@ -50,7 +53,7 @@ def check_case(case: dict, result: dict) -> list[str]:
         elif not set(expected) & set(cited):
             failures.append(f"none of expected citations {expected} cited (got {cited})")
     for f in case.get("forbidden_chunks", []):
-        if f in cited:
+        if f in cited or f in candidates:
             failures.append(f"cited forbidden chunk {f}")
     for t in case.get("forbidden_text", []):
         if t.lower() in result["answer_text"].lower():
@@ -62,6 +65,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cases", default="eval/heldout_cases.jsonl")
     ap.add_argument("--out", default="docs/evidence/eval-heldout")
+    ap.add_argument("--label", default="held-out", help="how to describe this case set in the report "
+                    "(e.g. 'held-out' or 'regression')")
     args = ap.parse_args()
     with open(args.cases, encoding="utf-8") as fh:
         cases = [json.loads(line) for line in fh if line.strip()]
@@ -77,7 +82,10 @@ def main() -> int:
                      "excluded": [e["chunk_id"] for e in result["excluded_sources"]],
                      "pass": not failures, "failures": failures})
     total_pass = sum(r["pass"] for r in rows)
-    summary = {"cases": len(rows), "passed": total_pass,
+    answerer = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "backend", "grounding.py")
+    with open(answerer, "rb") as fh:
+        answerer_sha = hashlib.sha256(fh.read()).hexdigest()
+    summary = {"label": args.label, "cases_file": args.cases, "answerer_sha256": answerer_sha, "cases": len(rows), "passed": total_pass,
                "by_category": {k: {"passed": v[0], "total": v[1]} for k, v in sorted(by_cat.items())},
                "method": "extractive TF-IDF answerer, no language model; live LLM quality NOT evaluated here"}
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
@@ -90,7 +98,7 @@ def main() -> int:
             note += " — FAIL: " + "; ".join(r["failures"])
         lines.append(f"| {r['id']} | {r['category']} | {r['outcome']} | {'yes' if r['pass'] else 'NO'} | {note} |")
     cat = "; ".join(f"{k} {v['passed']}/{v['total']}" for k, v in summary["by_category"].items())
-    md = f"**{total_pass}/{len(rows)} held-out cases passed** ({cat}).\n\n" + "\n".join(lines) + "\n"
+    md = f"**{total_pass}/{len(rows)} {args.label} cases passed** ({cat}). Cases: `{args.cases}`. Answerer `backend/grounding.py` sha256 `{answerer_sha}`.\n\n" + "\n".join(lines) + "\n"
     with open(args.out + ".md", "w", encoding="utf-8") as fh:
         fh.write(md)
     print(md)

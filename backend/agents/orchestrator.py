@@ -171,9 +171,9 @@ class WorkflowRunner:
         run_id = state["run_id"]
         run = self.store.get_run(run_id)
         ans = answer_question(run["request_text"])
-        self.store.transition(run_id, None, "completed", event="run_completed",
-                              data={"kind": "answer", "outcome": ans["outcome"]},
-                              result={"kind": "answer", "answer": ans})
+        # finish() ends the run cancelled instead if a cancel was accepted while planning (R5-01)
+        self.store.finish(run_id, "completed", event="run_completed", data={"kind": "answer", "outcome": ans["outcome"]},
+                          result={"kind": "answer", "answer": ans})
         return {"answer": ans}
 
     def _n_step(self, state: RunState) -> dict:
@@ -222,9 +222,9 @@ class WorkflowRunner:
 
     def _n_finalize_deliverable(self, state: RunState) -> dict:
         run_id = state["run_id"]
-        self.store.transition(run_id, None, "completed", event="run_completed", data={"kind": "deliverable"},
-                              result={"kind": "deliverable", "outputs": self._outputs_by_agent(state),
-                                      "note": "No action was proposed, so nothing needed approval."})
+        self.store.finish(run_id, "completed", event="run_completed", data={"kind": "deliverable"},
+                          result={"kind": "deliverable", "outputs": self._outputs_by_agent(state),
+                                  "note": "No action was proposed, so nothing needed approval."})
         return {}
 
     def _n_build_proposal(self, state: RunState) -> dict:
@@ -267,56 +267,66 @@ class WorkflowRunner:
         p = action["payload"]
         summary = (f"Simulated {p['action_type']} committed for {p['campaign_name']}: {p['amount']:,.2f} {p['currency']}. "
                    f"Ledger action {action['action_id']}. {p['integration']}")
-        self.store.transition(run_id, None, "completed", event="run_completed", data={"kind": "action"},
-                              result={"kind": "action", "summary": summary, "action_id": action["action_id"],
+        # an action is committed: completion must win (cancel is refused while a decision is being applied)
+        self.store.transition(run_id, {"resuming", "running"}, "completed", event="run_completed",
+                              data={"kind": "action"}, idempotent=True, result={"kind": "action", "summary": summary, "action_id": action["action_id"],
                                       "replay_detected": state["action"]["replayed"]})
         return {}
 
     def _n_rejected(self, state: RunState) -> dict:
-        self.store.transition(state["run_id"], None, "rejected", event="run_rejected",
+        self.store.transition(state["run_id"], {"resuming", "running"}, "rejected", event="run_rejected", idempotent=True,
                               data={"proposal": state["proposal"]},
                               result={"kind": "rejected", "summary": "Rejected by the approver. No action executed."})
         return {}
 
     def _n_cancelled(self, state: RunState) -> dict:
-        self.store.transition(state["run_id"], None, "cancelled", event="run_cancelled",
-                              data={"proposal": state["proposal"]},
+        self.store.transition(state["run_id"], {"resuming", "running"}, "cancelled", event="run_cancelled",
+                              idempotent=True, data={"proposal": state["proposal"]},
                               result={"kind": "cancelled", "summary": "Cancelled at the approval gate. No action executed."})
         return {}
 
     # ------------------------------------------------------------------ driving the graph
     def _drive(self, run_id: str, graph_input: Any) -> None:
         with self._lock(run_id):
-            run = self.store.get_run(run_id)
-            config = self._config(run)
-            try:
-                self.graph.invoke(graph_input, config, durability="sync")
-            except StepFailed as e:
-                retryable = e.retryable and run["recover_count"] < self.settings.max_recoveries
-                self.store.transition(run_id, None, "failed", event="run_failed",
-                                      data={"code": e.code, "message": e.message, "step_id": e.step_id,
-                                            "agent": e.agent, "retryable": retryable},
-                                      error_code=e.code, error_message=f"{e.step_id or ''} {e.agent or ''}: "
-                                      f"{e.message}".strip(), retryable=retryable)
-                return
-            except RunCancelled:
-                self.store.transition(run_id, None, "cancelled", event="run_cancelled",
-                                      data={"at": "between steps (cooperative cancel)"},
-                                      result={"kind": "cancelled", "summary": "Cancelled before any action."})
-                return
-            except Exception as e:  # noqa: BLE001
-                log.error("run %s internal error: %s", run_id, redact(traceback.format_exc(), self.provider.secrets(),
-                                                                          limit=4000))
-                self.store.transition(run_id, None, "failed", event="run_failed",
-                                      data={"code": "internal_error", "message": type(e).__name__},
-                                      error_code="internal_error", error_message=type(e).__name__, retryable=True)
-                return
-            snap = self.graph.get_state(config)
-            pending = [i.value for t in snap.tasks for i in t.interrupts]
-            if pending:
-                self.store.transition(run_id, {"running", "resuming", "interrupted"}, "awaiting_approval",
-                                      event="awaiting_approval", data=pending[0], error_code=None,
-                                      error_message=None)
+            self._drive_locked(run_id, graph_input)
+
+    def _drive_locked(self, run_id: str, graph_input: Any) -> None:
+        run = self.store.get_run(run_id)
+        config = self._config(run)
+        try:
+            self.graph.invoke(graph_input, config, durability="sync")
+        except StepFailed as e:
+            retryable = e.retryable and run["recover_count"] < self.settings.max_recoveries
+            self.store.finish(run_id, "failed", event="run_failed",
+                              data={"code": e.code, "message": e.message, "step_id": e.step_id, "agent": e.agent,
+                                    "retryable": retryable},
+                              error_code=e.code, error_message=f"{e.step_id or ''} {e.agent or ''}: {e.message}".strip(),
+                              retryable=retryable)
+            return
+        except RunCancelled:
+            self.store.transition(run_id, None, "cancelled", event="run_cancelled", idempotent=True,
+                                  data={"at": "between steps (cooperative cancel)"},
+                                  result={"kind": "cancelled", "summary": "Cancelled before any action."})
+            return
+        except Exception as e:  # noqa: BLE001
+            log.error("run %s internal error: %s", run_id, redact(traceback.format_exc(), self.provider.secrets(),
+                                                                      limit=4000))
+            self.store.finish(run_id, "failed", event="run_failed",
+                              data={"code": "internal_error", "message": type(e).__name__},
+                              error_code="internal_error", error_message=type(e).__name__, retryable=True)
+            return
+        snap = self.graph.get_state(config)
+        pending = [i.value for t in snap.tasks for i in t.interrupts]
+        if pending:
+            self._settle_gate(run_id, pending[0])
+
+    def _settle_gate(self, run_id: str, ref: dict) -> None:
+        """The graph is paused at the gate. Expose the pause, or honour a cancel accepted meanwhile
+        by resuming into the cancel branch (R5-01). Caller holds the run lock."""
+        outcome, dec = self.store.settle_gate(run_id, ref)
+        if outcome == "cancel":
+            self._drive_locked(run_id, Command(resume=self._decision_payload(dec)))
+            self.store.mark_decision_applied(dec["decision_id"])
 
     def _reserve_slot(self) -> None:
         with self._active_lock:
@@ -426,20 +436,11 @@ class WorkflowRunner:
     def recover(self, run_id: str, *, actor: str, role: str) -> dict:
         if not check_role(role, "recover"):
             raise Forbidden("role_not_permitted", f"role {role!r} cannot recover runs; approver role required")
-        run = self.store.require_run(run_id)
-        if run["status"] not in ("failed", "interrupted"):
-            raise Conflict("not_recoverable", f"run is {run['status']!r}; only failed or interrupted runs recover",
-                           status=run["status"])
-        if run["status"] == "failed" and not run["retryable"]:
-            raise Conflict("not_retryable", "run failed with a non-retryable error or used all recoveries")
-        if run["recover_count"] >= self.settings.max_recoveries:
-            raise Conflict("recovery_limit", f"run already used {run['recover_count']} recoveries")
+        self.store.require_run(run_id)
         self._reserve_slot()
         try:
-            self.store.transition(run_id, {"failed", "interrupted"}, "running", event="recover_started",
-                                  data={"actor": actor, "attempt": run["recover_count"] + 1},
-                                  recover_count=run["recover_count"] + 1, error_code=None, error_message=None,
-                                  retryable=False)
+            # eligibility check + recover_count bump in one write transaction (R5-02)
+            self.store.claim_recovery(run_id, actor, self.settings.max_recoveries)
         except BaseException:
             self._release_slot()
             raise
@@ -447,6 +448,10 @@ class WorkflowRunner:
         return {"run": self.store.get_run(run_id)}
 
     def _recover_job(self, run_id: str) -> None:
+        with self._lock(run_id):
+            self._recover_locked(run_id)
+
+    def _recover_locked(self, run_id: str) -> None:
         run = self.store.get_run(run_id)
         config = self._config(run)
         snap = self.graph.get_state(config)
@@ -454,29 +459,58 @@ class WorkflowRunner:
         dec = self.store.unapplied_decision(run_id)
         if not snap.values:  # never checkpointed: start from the beginning
             self.store.add_event(run_id, "recover_plan", {"action": "start from the beginning (no checkpoint)"})
-            self._drive(run_id, {"run_id": run_id})
+            self._drive_locked(run_id, {"run_id": run_id})
             return
         if pending:
             ref = pending[0]
             if dec and dec["proposal_id"] == ref["proposal_id"] and dec["revision"] == ref["revision"]:
                 self.store.add_event(run_id, "recover_plan", {"action": "re-apply recorded decision at gate",
                                                               "decision_id": dec["decision_id"]})
-                self._drive(run_id, Command(resume=self._decision_payload(dec)))
+                self._drive_locked(run_id, Command(resume=self._decision_payload(dec)))
                 self.store.mark_decision_applied(dec["decision_id"])
                 return
             if dec:
                 self.store.mark_decision_applied(dec["decision_id"])
             self.store.add_event(run_id, "recover_plan", {"action": "graph is paused at the gate; await decision"})
-            self.store.transition(run_id, {"running"}, "awaiting_approval", event="awaiting_approval", data=ref)
+            self._settle_gate(run_id, ref)
             return
         if dec:
             self.store.mark_decision_applied(dec["decision_id"])
         if not snap.next:
-            self.store.add_event(run_id, "recover_plan", {"action": "graph already finished; nothing to re-run"})
+            self._reconcile_finished(run_id, snap.values)
             return
         self.store.add_event(run_id, "recover_plan", {"action": "continue from last checkpoint",
                                                       "next_nodes": list(snap.next)})
-        self._drive(run_id, None)
+        self._drive_locked(run_id, None)
+
+    def _reconcile_finished(self, run_id: str, values: dict) -> None:
+        """The checkpoint says the graph reached END but the store is not terminal (e.g. a lost terminal
+        write). Derive the terminal status from the checkpoint and the ledger, explicitly (R5-02)."""
+        actions = self.store.actions(run_id)
+        decision = (values.get("decision") or {}).get("decision")
+        if actions:
+            to, result = "completed", {"kind": "action", "action_id": actions[-1]["action_id"],
+                                       "summary": "Reconciled from the ledger: simulated action "
+                                                  f"{actions[-1]['action_id']} was already committed."}
+        elif decision == "reject":
+            to, result = "rejected", {"kind": "rejected", "summary": "Rejected by the approver. No action executed."}
+        elif decision == "cancel":
+            to, result = "cancelled", {"kind": "cancelled", "summary": "Cancelled. No action executed."}
+        elif values.get("answer"):
+            to, result = "completed", {"kind": "answer", "answer": values["answer"]}
+        elif values.get("plan", {}).get("workflow_type") and values["plan"]["workflow_type"] not in GATED_WORKFLOWS:
+            to, result = "completed", {"kind": "deliverable", "outputs": self._outputs_by_agent(values)}
+        else:
+            to, result = "failed", None
+        self.store.add_event(run_id, "recover_plan", {"action": f"graph already finished; reconciled status to {to} "
+                                                                "from checkpoint and ledger"})
+        if to == "failed":
+            self.store.transition(run_id, {"running"}, "failed", event="run_failed",
+                                  data={"code": "inconsistent_state"}, error_code="inconsistent_state",
+                                  error_message="checkpoint finished but no terminal outcome could be derived",
+                                  retryable=False)
+        else:
+            self.store.transition(run_id, {"running"}, to, event="run_reconciled", result=result)
 
     def reconcile_on_startup(self) -> list[str]:
         """After a restart, no worker owns runs that were mid-flight. Mark them interrupted, explicitly."""

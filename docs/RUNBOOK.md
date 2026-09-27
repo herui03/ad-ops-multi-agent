@@ -32,7 +32,7 @@ UI development with hot reload: run uvicorn as above plus `cd frontend && npm ru
 ```bash
 pytest -q -rs                    # offline suite; tests/live is SKIPPED (reported NOT RUN) without GROQ_API_KEY
 python scripts/demo_cli.py       # whole flow in the terminal, prints every durable id
-python scripts/run_eval.py       # held-out grounding eval -> docs/evidence/eval-heldout.{json,md}
+python scripts/run_eval.py --cases eval/heldout_r5_cases.jsonl --out /tmp/eval-r5   # round-5 held-out grounding eval
 NODE_PATH=$(npm root -g) PYTHON=.venv/bin/python node e2e/run_e2e.mjs   # needs playwright + Chromium; build the UI first
 ```
 
@@ -79,8 +79,12 @@ A marker file `data/.crash_drill_fired` stops the drill from firing twice. Delet
 
 * Awaiting approval: recorded as a `cancel` decision on the current revision. The graph resumes into its `cancelled` branch.
 * Queued or running: cooperative. The flag is checked before each step. Status becomes `cancelled` without a proposal.
-* Failed or interrupted: becomes `cancelled` immediately.
+* Queued or running, and the graph reaches the gate before noticing: the accepted cancel is honoured there. A system cancel decision is recorded; the run ends `cancelled` and never shows as awaiting approval.
+* Failed or interrupted, no action committed: becomes `cancelled` immediately. Any recorded but unexecuted approve is voided.
+* Failed or interrupted, **a simulated action already committed** (e.g. crash right after the ledger commit): `409 action_already_committed`. Use **Recover** to reconcile the run to `completed`; it cannot be cancelled as if nothing happened.
+* While a decision is being applied (`resuming`): `409 run_busy`.
 * Repeating a cancel returns `already_cancelled`. A later approve returns `409`, and the run stays cancelled.
+* Two people pressing Recover at once: one claim wins; the other gets `409`.
 
 ## 7. Exports and audit
 

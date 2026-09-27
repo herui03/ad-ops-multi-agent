@@ -30,8 +30,11 @@ from pathlib import Path
 
 CORPUS_DIR = Path(__file__).resolve().parent.parent / "rag_documents"
 
-# Tuned on the development cases in tests/test_grounding.py only (see docs/EVALUATION.md).
+# MIN_SCORE and MIN_COVERAGE were chosen on the DEV cases (tests/test_grounding.py). MIN_QUOTE_SUPPORT and the
+# corpus-wide conflict check were added after reviewing the frozen first-round held-out failures, which are
+# therefore regression cases now, not held-out evidence (see docs/EVALUATION.md).
 MIN_SCORE = 0.12        # cosine similarity of the best chunk
+MIN_QUOTE_SUPPORT = 0.3  # share of question terms that must appear in the quoted sentences
 MIN_COVERAGE = 0.4      # share of question content terms present in the best chunk
 
 TOP_K = 5
@@ -189,16 +192,46 @@ def _best_sentences(c: Chunk, q_terms: set[str], limit: int = 2) -> list[str]:
     return [sents[i] for i in keep]
 
 
+def _split_question(question: str) -> tuple[str, list[str]]:
+    """Drop instruction-like sentences from the question before matching; they are reported, not obeyed."""
+    parts = [p for p in re.split(r"(?<=[.!?])\s+", question.strip()) if p]
+    kept = [p for p in parts if not any(pat.search(p) for pat in INJECTION_PATTERNS)]
+    return " ".join(kept), [p for p in parts if p not in kept]
+
+
+def _candidates(usable: list[tuple[float, Chunk]], q_terms: set[str], k: int = 2) -> list[dict]:
+    """Closest evidence shown to a person when support is NOT established. Not an answer."""
+    out = []
+    for _, c in usable[:k]:
+        quote = _best_sentences(c, q_terms, 1)[0]
+        out.append({**citation(c, quote, len(out) + 1), "note": "candidate evidence only; not an answer"})
+    return out
+
+
 def answer_question(question: str, corpus: Corpus | None = None) -> dict:
-    """Answer from the corpus with verbatim, resolvable citations, or abstain / report a conflict."""
+    """Answer from the corpus with verbatim, resolvable citations, or abstain / report a conflict.
+
+    Guards (all general, none keyed to particular questions):
+      1. retrieval strength (MIN_SCORE) and chunk-level term coverage (MIN_COVERAGE);
+      2. quoted-text support (MIN_QUOTE_SUPPORT): the sentences actually shown must contain the
+         question's terms; a match on a heading or elsewhere in the chunk is not enough;
+      3. topic conflicts are checked across the WHOLE corpus, not only retrieved chunks, so a
+         disagreeing source cannot be missed just because it ranked low;
+      4. instruction-like sentences in the question or in sources are ignored and reported.
+    When support is not established the result is `abstained`, with any closest `candidate_evidence`
+    listed separately and labelled as not an answer.
+    """
     corpus = corpus or get_corpus()
-    q_terms = set(terms(question))
+    kept, ignored = _split_question(question)
+    q_terms = set(terms(kept))
     base = {"question": question, "method": "extractive TF-IDF (no language model)", "citations": [],
-            "excluded_sources": [], "retrieval": []}
+            "candidate_evidence": [], "excluded_sources": [], "retrieval": [],
+            "ignored_question_text": ignored}
     if not q_terms:
-        return {**base, "outcome": "abstained", "reason": "no_content_terms",
+        return {**base, "outcome": "abstained",
+                "reason": "only_instruction_like_text" if ignored else "no_content_terms",
                 "answer_text": "I can't answer that from the policy corpus: the question has no searchable terms."}
-    hits = corpus.search(question)
+    hits = corpus.search(kept)
     base["retrieval"] = [{"chunk_id": c.chunk_id, "score": round(s, 4)} for s, c in hits]
     excluded = [c for _, c in hits if c.injection_suspected]
     base["excluded_sources"] = [{"chunk_id": c.chunk_id, "reason": "instruction-like text in source; treated as "
@@ -211,20 +244,33 @@ def answer_question(question: str, corpus: Corpus | None = None) -> dict:
     top_score, top = usable[0]
     coverage = len(q_terms & set(top.terms)) / len(q_terms)
     if coverage < MIN_COVERAGE:
-        return {**base, "outcome": "abstained", "reason": "low_term_coverage",
+        return {**base, "outcome": "abstained", "reason": f"low_term_coverage ({coverage:.0%} of question terms in "
+                f"the best chunk)", "candidate_evidence": _candidates(usable, q_terms),
                 "answer_text": "The closest source only partly matches the question, so no answer is given."}
     if top.topic:
-        rivals = [c for s, c in usable if s >= MIN_SCORE and c.topic == top.topic and c.position != top.position
-                  and c.doc_id != top.doc_id]
+        rivals = [c for c in corpus.chunks if c.topic == top.topic and c.position != top.position
+                  and c.doc_id != top.doc_id and not c.injection_suspected]
         if rivals:
-            sides = [top] + [r for r in rivals if r.position not in {top.position}][:2]
+            sides = [top] + rivals[:2]
+            retrieved = {c.chunk_id for _, c in usable}
             cites = [citation(c, _best_sentences(c, q_terms, 1)[0], i + 1) for i, c in enumerate(sides)]
             text = ("Sources disagree on this point, so no single answer is given. "
                     + " ".join(f"[{ct['n']}] {ct['title']} v{ct['version']} says: \"{ct['quote']}\"" for ct in cites)
                     + " A person should decide which source governs.")
+            found = "all retrieved" if all(c.chunk_id in retrieved for c in rivals[:2]) else \
+                "found via the topic tag across the corpus; not all were retrieved"
             return {**base, "outcome": "conflict", "reason": f"topic '{top.topic}' has positions "
-                    + ", ".join(sorted({c.position for c in sides})), "answer_text": text, "citations": cites}
+                    + ", ".join(sorted({c.position for c in sides})) + f" ({found})", "answer_text": text,
+                    "citations": cites}
     quotes = _best_sentences(top, q_terms)
+    support = len(q_terms & set(terms(" ".join(quotes)))) / len(q_terms)
+    if support < MIN_QUOTE_SUPPORT:
+        return {**base, "outcome": "abstained",
+                "reason": f"unsupported_by_quoted_text (best chunk {top.chunk_id} matched on {coverage:.0%} of terms, "
+                          f"but its sentences contain only {support:.0%})",
+                "candidate_evidence": _candidates(usable, q_terms),
+                "answer_text": "A source matched some keywords, but none of its sentences addresses the question, so "
+                               "no answer is given. The closest evidence is listed for a person to read."}
     cites = [citation(top, q, i + 1) for i, q in enumerate(quotes)]
     text = " ".join(f"\"{q}\" [{i + 1}]" for i, q in enumerate(quotes))
     caveat = {"fictional-policy": "Source is a fictional demo policy.",
@@ -232,7 +278,8 @@ def answer_question(question: str, corpus: Corpus | None = None) -> dict:
               "unverified-summary": "Source is an unverified paraphrase, not current official text or legal advice.",
               "unverified-vendor-note": "Source is an unreviewed, untrusted vendor note."}.get(top.kind, "")
     return {**base, "outcome": "answered", "reason": f"best match {top.chunk_id} (score {top_score:.2f}, "
-            f"coverage {coverage:.0%})", "answer_text": f"{text} {caveat}".strip(), "citations": cites}
+            f"coverage {coverage:.0%}, quoted-text support {support:.0%})", "answer_text": f"{text} {caveat}".strip(),
+            "citations": cites}
 
 
 def resolve_citation(chunk_id: str) -> dict | None:

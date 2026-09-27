@@ -31,7 +31,8 @@ stateDiagram-v2
     [*] --> queued
     queued --> running : worker picks up
     queued --> cancelled : cancel before start
-    running --> awaiting_approval : graph paused at interrupt()
+    running --> awaiting_approval : graph paused at interrupt() (settle_gate, no cancel accepted)
+    running --> resuming : graph paused at interrupt() but a cancel was accepted → system cancel decision
     running --> completed : question answered / deliverable with no action
     running --> failed : step exhausted retries, invalid plan, internal error
     running --> cancelled : cooperative cancel between steps
@@ -102,6 +103,27 @@ After commit, the runner resumes the graph with `Command(resume=decision)` under
 
 **Not claimed:** exactly-once execution against an external system. A real ad API adds a window this local transaction cannot close: the remote call succeeds but the local commit is lost. Closing it needs the remote side to honour an idempotency key, or a reconciliation read against the platform before retrying. The ledger key is the value that would be sent as that idempotency key.
 
+## Cancellation semantics (review round 5)
+
+A cancel is either **accepted before the run reaches a terminal state or the gate**, in which case it wins, or it is **refused with a reason**. It is never accepted and then ignored.
+
+| When the cancel arrives | What happens |
+|---|---|
+| queued / running (any step, including the planner or the last step) | `cancel_requested` is set. Nodes check it at their start. Terminal writes go through `Store.finish`, which ends the run `cancelled` instead of `completed` or `failed` if the flag was set first. Both take the SQLite write lock, so there is no gap between check and write. |
+| after `build_proposal`'s check, before `interrupt()` | When the graph pauses, `Store.settle_gate` sees the accepted cancel, records a `system` cancel decision on the pending revision and resumes into the `cancelled` branch. The run never shows as `awaiting_approval`, and a later approve gets 409. |
+| awaiting approval | Recorded as a `cancel` decision on the current revision; the graph resumes into `cancelled`. |
+| resuming (a decision is being applied) | `409 run_busy`: the outcome of the in-flight decision decides. |
+| failed / interrupted, **no action committed** | `cancelled`. Any recorded but unexecuted approve is voided and the proposal is marked `cancelled`. Recover then refuses. |
+| failed / interrupted, **a simulated action already committed** (crash after commit) | `409 action_already_committed` with the action ids. The run cannot be marked cancelled as if nothing happened; Recover reconciles it to `completed`. |
+
+At the action boundary the simulator also refuses inside its ledger transaction if the run is not `resuming` or `running`, or if a cancel was accepted.
+
+## Recovery claim (review round 5)
+
+`Store.claim_recovery` checks eligibility and increments `recover_count` in **one** write transaction: the status must be `failed` (retryable) or `interrupted`, and the count must be under the limit. Two concurrent Recover calls cannot both win; the second gets 409.
+
+`Store.transition` is strict: current == target is accepted only when a graph node passes `idempotent=True` for its own replayable terminal write. If a recovered graph is already at END but the store is not terminal, `_reconcile_finished` derives the status from the checkpoint and the ledger, or fails explicitly with `inconsistent_state`. It never leaves the run `running`.
+
 ## Why these choices
 
 | Choice | Reason |
@@ -110,7 +132,7 @@ After commit, the runner resumes the graph with `Command(resume=decision)` under
 | A separate application store | The gate rules (roles, revisions, idempotency, ledger) need transactional reads and writes. The checkpointer is an execution log, not a place to enforce business rules. |
 | Deterministic demo provider | Anyone can run the whole flow with no key and no network, and tests are reproducible. It is labelled everywhere so it is not mistaken for a model. |
 | Rule-engine compliance as a backstop | Model findings are merged, but blocking rules do not depend on a model noticing them. |
-| Extractive answers only | Every sentence shown is a verbatim quote with a resolvable citation, so it cannot invent plausible citations. The trade-off is lexical recall (see EVALUATION.md). |
+| Extractive answers only | Every sentence shown is a verbatim quote with a resolvable citation, so it cannot invent plausible citations. The quoted sentences must themselves support the question, and topic conflicts are checked corpus-wide. The trade-off is lexical matching: it can still quote an on-topic sentence that does not answer the question (see EVALUATION.md). |
 | Redis removed | One transactional store is simpler and stronger than a cache plus a database for this workload. |
 
 ## Limits

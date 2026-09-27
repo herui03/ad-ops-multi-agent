@@ -1,4 +1,4 @@
-# E2E repeat runs after fixing the badge race (C6), 2026-09-27, Linux container, Python 3.12.3, playwright 1.56.1 Chromium
+# E2E repeat runs after review round 5 fixes, 2026-09-27, Linux container, Python 3.12.3, playwright 1.56.1 Chromium
 # command: NODE_PATH=$(npm root -g) PYTHON=<venv>/bin/python node e2e/run_e2e.mjs   (x3)
 ## run 1
 PASS  ui loads in demo mode with explicit label — DEMO · deterministic provider · offline
@@ -8,14 +8,16 @@ PASS  approve executes exactly one simulated action (double click) — actions=1
 PASS  reject is terminal with zero actions
 PASS  blocked proposal refused, revision 2 approved
 PASS  pending run survives process kill and resumes the same thread
+PASS  cancel refused once a simulated action is committed (reconcile instead)
 PASS  crash after commit: recover reconciles without a second action — server exit code 70
 PASS  provider failure is explicit; recover resumes to the gate
+PASS  keyword match without support: abstain, candidate evidence shown separately
 PASS  grounded answer / conflict / abstain shown with citations
 PASS  HTML/script shown as text, no dialog, CSV formula neutralised
 PASS  dashboard shows stored aggregates — pending=2 actions=4
 PASS  mobile 390px: no horizontal overflow, approval works by tap — overflow px mobile=0,0,0 desktop=0
-PASS  no console errors outside deliberate server-down / negative-test windows — 9 total, 0 unexpected
-14/14 E2E checks passed
+PASS  no console errors outside deliberate server-down / negative-test windows — 14 total, 0 unexpected
+16/16 E2E checks passed
 ## run 2
 PASS  ui loads in demo mode with explicit label — DEMO · deterministic provider · offline
 PASS  gate pauses with zero actions
@@ -24,14 +26,16 @@ PASS  approve executes exactly one simulated action (double click) — actions=1
 PASS  reject is terminal with zero actions
 PASS  blocked proposal refused, revision 2 approved
 PASS  pending run survives process kill and resumes the same thread
+PASS  cancel refused once a simulated action is committed (reconcile instead)
 PASS  crash after commit: recover reconciles without a second action — server exit code 70
 PASS  provider failure is explicit; recover resumes to the gate
+PASS  keyword match without support: abstain, candidate evidence shown separately
 PASS  grounded answer / conflict / abstain shown with citations
 PASS  HTML/script shown as text, no dialog, CSV formula neutralised
 PASS  dashboard shows stored aggregates — pending=2 actions=4
 PASS  mobile 390px: no horizontal overflow, approval works by tap — overflow px mobile=0,0,0 desktop=0
-PASS  no console errors outside deliberate server-down / negative-test windows — 9 total, 0 unexpected
-14/14 E2E checks passed
+PASS  no console errors outside deliberate server-down / negative-test windows — 13 total, 0 unexpected
+16/16 E2E checks passed
 ## run 3
 PASS  ui loads in demo mode with explicit label — DEMO · deterministic provider · offline
 PASS  gate pauses with zero actions
@@ -40,13 +44,15 @@ PASS  approve executes exactly one simulated action (double click) — actions=1
 PASS  reject is terminal with zero actions
 PASS  blocked proposal refused, revision 2 approved
 PASS  pending run survives process kill and resumes the same thread
+PASS  cancel refused once a simulated action is committed (reconcile instead)
 PASS  crash after commit: recover reconciles without a second action — server exit code 70
 PASS  provider failure is explicit; recover resumes to the gate
+PASS  keyword match without support: abstain, candidate evidence shown separately
 PASS  grounded answer / conflict / abstain shown with citations
 PASS  HTML/script shown as text, no dialog, CSV formula neutralised
 PASS  dashboard shows stored aggregates — pending=2 actions=4
 PASS  mobile 390px: no horizontal overflow, approval works by tap — overflow px mobile=0,0,0 desktop=0
-PASS  no console errors outside deliberate server-down / negative-test windows — 9 total, 0 unexpected
-14/14 E2E checks passed
+PASS  no console errors outside deliberate server-down / negative-test windows — 11 total, 0 unexpected
+16/16 E2E checks passed
 
-## earlier run from a clean export of d92a676 (before the fix): 13/14 — FAIL 'ui loads in demo mode with explicit label' (badge read before /api/meta loaded)
+## history: at c149c38 the suite had 14 checks (3/3 runs 14/14); an earlier clean-export run of d92a676 was 13/14 (badge race, DEFECT_LOG C6)

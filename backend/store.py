@@ -217,19 +217,109 @@ class Store:
         return [self._run_dict(r) for r in self._q(f"SELECT * FROM runs WHERE status IN ({marks})", tuple(statuses))]
 
     def transition(self, run_id: str, allowed_from: set[str] | None, to: str, event: str | None = None,
-                   data: dict | None = None, **fields: Any) -> dict:
-        """Move a run to `to` only if its current status is in `allowed_from` (None = any non-terminal)."""
+                   data: dict | None = None, *, idempotent: bool = False, **fields: Any) -> dict:
+        """Move a run to `to` only if its current status is in `allowed_from` (None = any non-terminal).
+
+        Strict by default. `idempotent=True` additionally accepts current == to; graph nodes that may be
+        replayed after a crash use it for their own terminal write, nothing else does.
+        """
         with self.tx() as c:
             row = c.execute("SELECT status FROM runs WHERE run_id=?", (run_id,)).fetchone()
             if row is None:
                 raise NotFound("run_not_found", f"no run with id {run_id!r}")
             current = row["status"]
+            if idempotent and current == to:
+                return self.get_run(run_id)
             ok = (current not in TERMINAL) if allowed_from is None else (current in allowed_from)
-            if not ok and current != to:
+            if not ok:
                 raise Conflict("invalid_transition", f"run is {current!r}; cannot move to {to!r}", status=current)
             self._set(c, run_id, status=to, **fields)
             if event:
                 self._event(c, run_id, event, {"from": current, "to": to, **(data or {})})
+        return self.get_run(run_id)
+
+    def finish(self, run_id: str, to: str, *, event: str, data: dict | None = None, result: dict | None = None,
+               cancel_result: dict | None = None, **fields: Any) -> str:
+        """Terminal/failed write that honours an accepted cancel atomically.
+
+        If a cancel was accepted (cancel_requested) before this transaction, the run ends `cancelled`
+        instead of `to`. Because request_cancel and finish both take the write lock, a cancel is either
+        accepted before the run finishes (and wins) or refused because the run is already terminal.
+        Returns the status actually written.
+        """
+        with self.tx() as c:
+            row = c.execute("SELECT status, cancel_requested FROM runs WHERE run_id=?", (run_id,)).fetchone()
+            if row is None:
+                raise NotFound("run_not_found", f"no run with id {run_id!r}")
+            current = row["status"]
+            if current in TERMINAL:
+                if current == to:
+                    return current  # replayed terminal node
+                raise Conflict("invalid_transition", f"run is already {current!r}", status=current)
+            if row["cancel_requested"]:
+                self._set(c, run_id, status="cancelled", retryable=False,
+                          result=cancel_result or {"kind": "cancelled", "summary": "Cancelled before it finished. "
+                                                   "No action executed."})
+                self._event(c, run_id, "run_cancelled", {"from": current, "at": f"instead of {to}"})
+                return "cancelled"
+            if result is not None:
+                fields["result"] = result
+            self._set(c, run_id, status=to, **fields)
+            self._event(c, run_id, event, {"from": current, "to": to, **(data or {})})
+            return to
+
+    def settle_gate(self, run_id: str, pending_ref: dict) -> tuple[str, dict | None]:
+        """Called once the graph is paused at interrupt(). Atomically either expose the pause as
+        `awaiting_approval`, or, if a cancel was accepted while the run was still `running`, record a
+        system cancel decision on the pending proposal so the graph resumes into its cancel branch.
+        Returns ("await", None) or ("cancel", decision_row)."""
+        with self.tx() as c:
+            row = c.execute("SELECT status, cancel_requested, requester FROM runs WHERE run_id=?", (run_id,)).fetchone()
+            if row["status"] not in ("running", "resuming", "interrupted"):
+                raise Conflict("invalid_transition", f"run is {row['status']!r}; cannot settle gate",
+                               status=row["status"])
+            if not row["cancel_requested"]:
+                self._set(c, run_id, status="awaiting_approval", error_code=None, error_message=None)
+                self._event(c, run_id, "awaiting_approval", {"from": row["status"], "to": "awaiting_approval",
+                                                             **pending_ref})
+                return "await", None
+            prop = c.execute("SELECT * FROM proposals WHERE proposal_id=?", (pending_ref["proposal_id"],)).fetchone()
+            decision_id = new_id("dec")
+            idem = f"system-cancel:{prop['proposal_id']}:{prop['revision']}"
+            c.execute(
+                "INSERT OR IGNORE INTO decisions(decision_id, run_id, proposal_id, revision, proposal_sha256, decision,"
+                " actor, role, comment, changes_json, idempotency_key, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (decision_id, run_id, prop["proposal_id"], prop["revision"], prop["sha256"], "cancel", "system",
+                 "system", "cancel was accepted before the proposal reached the approval gate", None, idem,
+                 time.time()))
+            c.execute("UPDATE proposals SET status='cancelled' WHERE proposal_id=?", (prop["proposal_id"],))
+            self._set(c, run_id, status="resuming")
+            self._event(c, run_id, "gate_cancelled_before_approval", {"proposal_id": prop["proposal_id"],
+                                                                      "revision": prop["revision"]})
+            dec = c.execute("SELECT * FROM decisions WHERE idempotency_key=?", (idem,)).fetchone()
+            d = dict(dec)
+            d["changes"] = None
+            return "cancel", d
+
+    def claim_recovery(self, run_id: str, actor: str, max_recoveries: int) -> dict:
+        """Atomically claim one recovery: check eligibility and bump recover_count in one write
+        transaction, so concurrent Recover calls cannot both succeed."""
+        with self.tx() as c:
+            row = c.execute("SELECT status, retryable, recover_count FROM runs WHERE run_id=?", (run_id,)).fetchone()
+            if row is None:
+                raise NotFound("run_not_found", f"no run with id {run_id!r}")
+            if row["status"] not in ("failed", "interrupted"):
+                raise Conflict("not_recoverable", f"run is {row['status']!r}; only failed or interrupted runs recover",
+                               status=row["status"])
+            if row["status"] == "failed" and not row["retryable"]:
+                raise Conflict("not_retryable", "run failed with a non-retryable error or used all recoveries")
+            if row["recover_count"] >= max_recoveries:
+                raise Conflict("recovery_limit", f"run already used {row['recover_count']} recoveries")
+            attempt = row["recover_count"] + 1
+            self._set(c, run_id, status="running", recover_count=attempt, error_code=None, error_message=None,
+                      retryable=False)
+            self._event(c, run_id, "recover_started", {"from": row["status"], "to": "running", "actor": actor,
+                                                       "attempt": attempt})
         return self.get_run(run_id)
 
     def set_fields(self, run_id: str, **fields: Any) -> None:
@@ -455,8 +545,22 @@ class Store:
             elif status in ("completed", "rejected"):
                 raise Conflict("run_terminal", f"run is already {status!r}", status=status)
             elif status in ("failed", "interrupted"):
-                self._set(c, run_id, status="cancelled", retryable=False)
-                self._event(c, run_id, "run_cancelled", {"actor": actor, "role": role, "from": status})
+                committed = c.execute("SELECT action_id FROM sim_actions WHERE run_id=?", (run_id,)).fetchall()
+                if committed:
+                    raise Conflict("action_already_committed",
+                                   "a simulated action was already committed for this run; it cannot be cancelled "
+                                   "as if nothing happened. Recover to reconcile it.",
+                                   action_ids=[r["action_id"] for r in committed])
+                open_props = c.execute("SELECT proposal_id, status FROM proposals WHERE run_id=? AND status IN "
+                                       "('pending','approved')", (run_id,)).fetchall()
+                c.execute("UPDATE proposals SET status='cancelled' WHERE run_id=? AND status IN ('pending','approved')",
+                          (run_id,))
+                self._set(c, run_id, status="cancelled", retryable=False,
+                          result={"kind": "cancelled", "summary": "Cancelled. No action executed."})
+                self._event(c, run_id, "run_cancelled", {
+                    "actor": actor, "role": role, "from": status,
+                    "voided_proposals": [dict(r) for r in open_props],
+                    "note": "any recorded approve for these proposals was never executed and is now void"})
                 outcome = "cancelled"
             elif status in ("queued", "running"):
                 self._set(c, run_id, cancel_requested=True)

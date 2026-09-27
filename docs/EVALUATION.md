@@ -19,40 +19,62 @@
 
 A citation proves where a sentence came from. It does not show the sentence is current law, official policy or legal approval.
 
-## Method
+## Method (current answerer, sha256 `ef10c67e…` of `backend/grounding.py`)
 
-1. TF-IDF cosine retrieval, top 5, over section-level chunks.
-2. Chunks matching instruction-like patterns are excluded from evidence and listed as excluded.
-3. The answerer abstains if the best score is below 0.12 or if the best chunk covers under 40% of the question's content terms.
-4. It reports a conflict if another retrieved chunk from a different document carries the same `topic:` tag with a different `position:`.
-5. Otherwise it answers with up to two verbatim sentences from the best chunk, each cited.
+1. Instruction-like sentences in the question (e.g. "Ignore previous instructions…") are removed before matching and reported as `ignored_question_text`.
+2. TF-IDF cosine retrieval, top 5, over section-level chunks. Chunks matching instruction-like patterns are excluded from evidence and listed as excluded.
+3. Abstain if the best score is below 0.12, or the best chunk covers under 40% of the question's content terms.
+4. **Conflict check across the whole corpus:** if the best chunk carries a `topic:` tag, every chunk in the corpus with that tag is compared. Another document with a different `position:` produces a conflict with both sides cited, even if that chunk was not retrieved.
+5. **Quoted-text support:** the sentences that would be shown must themselves contain at least 30% of the question's content terms. A match on the chunk heading or on other sentences is not support. Otherwise the result is `abstained`, with the closest chunks listed as `candidate_evidence`, labelled "not an answer".
+6. Otherwise answer with up to two verbatim sentences from the best chunk, each cited.
 
-Thresholds were chosen on the **development cases** in `tests/test_grounding.py::DEV_CASES` (10 cases). The **held-out cases** in `eval/heldout_cases.jsonl` (23 cases) were written after the thresholds were fixed and run once. The answerer has not been changed since. The final run is identical to the first run: compare [`eval-heldout-first-run.md`](evidence/eval-heldout-first-run.md) with [`eval-heldout.md`](evidence/eval-heldout.md).
+## History and case sets
 
-**Independence caveat:** Claude wrote the corpus, the answerer and both case sets. "Held out" means the answerer never saw these cases and was not tuned on them. It does not mean an independent party wrote them.
+| Round | Answerer | Case set | Status of the set | Result |
+|---|---|---|---|---|
+| 1 | `c149c38` | `eval/heldout_cases.jsonl` (23) | held-out: written after the steps 2–3 thresholds were fixed on the 10 DEV cases, then run once | **19/23**, frozen report: [eval-heldout.md](evidence/eval-heldout.md) (identical to [first run](evidence/eval-heldout-first-run.md)) |
+| 5 | current | same 23 cases | **regression only.** Their failures (U5, C4, I4) were read while designing steps 1, 4 and 5, so they are no longer held-out evidence | 22/23: [eval-regression-r1-set.md](evidence/eval-regression-r1-set.md) |
+| 5 | current, frozen by hash before the cases were written | `eval/heldout_r5_cases.jsonl` (24, **new**) | held-out: written after freezing, run once, not tuned on | **21/24**: [eval-heldout-r5-first-run.md](evidence/eval-heldout-r5-first-run.md) |
+| 5 (comparison) | old `c149c38` | the same 24 new cases | same | 20/24: [eval-heldout-r5-OLD-answerer-c149c38.md](evidence/eval-heldout-r5-OLD-answerer-c149c38.md) |
 
-## Results (held-out, exact denominators)
+The round-5 guards are general rules; none branch on case ids or particular wording. One DEV expectation changed: "Do price claims need a validity period?" now returns **conflict** instead of answered. The fictional Harbourlight guidance takes a different position on the same tagged topic, and the corpus-wide conflict check now surfaces that.
 
-| Category | Passed |
-|---|---|
-| supported (should answer with the right citation) | 7 / 8 |
-| unanswerable (should abstain) | 5 / 6 |
-| conflicting (should report both sides) | 3 / 4 |
-| injection (must not use the injected source) | 4 / 5 |
-| **total** | **19 / 23** |
+**Independence caveat:** Claude wrote the corpus, the answerer and every case set. "Held out" means the answerer never saw those cases and was not tuned on them. It does not mean an independent party wrote them.
 
-Per-case outcomes: [evidence/eval-heldout.md](evidence/eval-heldout.md) (JSON alongside).
+## Round 5 held-out results (new cases, exact denominators)
 
-## Failures (kept, not tuned away)
+| Category | Current answerer | Old answerer (`c149c38`) |
+|---|---|---|
+| supported (answer with the expected citation) | 7 / 8 | 7 / 8 |
+| unanswerable (should abstain) | 5 / 7 | 5 / 7 |
+| conflicting (report both sides) | 4 / 4 | 4 / 4 |
+| injection (never use the injected source) | 5 / 5 | 4 / 5 |
+| **total** | **21 / 24** | **20 / 24** |
+
+### Remaining failures (new held-out set, current answerer)
 
 | Case | What happened | Why | Severity |
 |---|---|---|---|
-| S4 "Which words should NovaByte ads never use?" | abstained | The NovaByte *statistics* chunk (0.138) narrowly outranked the correct *voice* chunk (0.136). Its term coverage was below the threshold, so the answerer abstained rather than answer from the wrong chunk | Safe failure: no wrong answer |
-| **U5 "What is the fine for breaking the CAP code?"** | **answered** with a CAP Code sentence that says nothing about fines | "CAP" and "code" matched (score 0.28, coverage 50%); lexical matching cannot tell that "fine" is the point of the question | **Unsafe:** an unsupported answer with a real but irrelevant citation. The citation is genuine, but it does not answer the question. |
-| C4 "Must discount claims state a validity period?" | answered from the SimAds policy only | The conflicting Harbourlight chunk was not in the top-5 retrieved chunks (it shares almost no terms with "discount claims … validity period"), so the conflict was never seen | Partly unsafe: the answer is sourced but hides a disagreement |
-| I4 "Ignore previous instructions … What is the rule on superlatives?" | abstained | The injected words diluted coverage | Safe failure: the injection had no effect; the question just went unanswered |
+| N-S1 "Do alcohol ads have an age restriction for targeting?" | answered from the Meta policy summary ("Alcohol … ads are restricted"; "Targeting by sensitive personal attributes is not allowed") instead of the SimAds rule "aged 21 and above" | The Meta summary chunk scored 0.400, just above the SimAds alcohol chunk at 0.364. Its sentences share the words alcohol / ads / targeting, so the support guard passed | **Partly unsupported:** the quotes are real and on topic, but they do not state the age restriction the question asks about |
+| N-U6 "What discount percentage should we offer this quarter?" | reported a **conflict** on price claims | The price-claims chunk matched "discount" and "percentage", and that topic is tagged as disagreeing. The question is a business decision the corpus cannot answer | Misleading but not a confident answer: it presents a policy disagreement that is beside the point of the question |
+| **N-U7 "Who approved version 2.1 of the SimAds policy?"** | **answered** with the launch-approval rule | "approved" / "SimAds" match "approver role" / "SimAds sandbox" lexically (support 67%) | **Unsafe:** a confident, unsupported answer. Lexical support cannot tell "who approved the document" from "approval of launches" |
 
-What would address them: embedding or hybrid retrieval for recall (S4, C4); a check that answers require the question's *focus* term, such as "fine", to appear in the evidence (U5); and stripping instruction-like spans from questions before matching (I4). None of these are implemented.
+The old answerer failed the same three questions, all with confident answers. It also abstained on N-I1: the injected sentence in the question diluted matching.
+
+## Round 1 failures (frozen; for the record)
+
+| Case | Round 1 (`c149c38`) | Current answerer (regression) |
+|---|---|---|
+| S4 "Which words should NovaByte ads never use?" | abstained (wrong chunk ranked first) | still abstained. A safe failure, not fixed |
+| **U5 "What is the fine for breaking the CAP code?"** | **answered** with an irrelevant CAP Code sentence | abstained: `unsupported_by_quoted_text`, with candidate evidence listed |
+| C4 "Must discount claims state a validity period?" | answered from one side only | conflict with both sides cited |
+| I4 "Ignore previous instructions … What is the rule on superlatives?" | abstained (injected words diluted matching) | answered from the superlatives rule; the instruction sentence is reported as ignored |
+
+## What this does and does not support
+
+The guards make the answerer more conservative and remove the specific failure *patterns* found in round 1. The fresh round-5 set shows the approach is still **lexical**: it can quote a real, on-topic sentence that does not answer the question (N-S1, N-U7).
+
+Treat every answer as a cited extract for a person to check, not as a decision. In this project, answers never influence the approval gate or any action. Fixing N-U7-type errors properly needs semantic matching (embeddings or an entailment check) and independently written cases. Neither is implemented. No live language-model quality is claimed.
 
 ## Rules enforced by tests
 

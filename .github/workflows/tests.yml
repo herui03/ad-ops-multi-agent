@@ -18,6 +18,7 @@ jobs:
       # Offline: deterministic demo provider, no key, no network. tests/live is skipped without GROQ_API_KEY.
       - run: pytest -q -rs
       - run: python scripts/run_eval.py --out /tmp/eval-heldout
+      - run: python scripts/run_eval.py --cases eval/heldout_r5_cases.jsonl --out /tmp/eval-heldout-r5
       - run: python scripts/demo_cli.py
 
   frontend:

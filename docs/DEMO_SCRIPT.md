@@ -13,6 +13,6 @@
 | 1:40 | Click *Campaign with a blocked claim* → Submit → as bob, Approve → 422. Open *Request a revision*, remove `cr_b2`, send, then approve revision 2 | "A rule engine blocks 'best'. The finding cites a real corpus chunk with its hash. Approving revision 1 is now impossible: it's stale." |
 | 2:10 | Click *Conflicting sources* → Submit | "Answers are verbatim quotes with resolvable citations. Here two fictional sources disagree, so it reports the conflict instead of picking one. It also abstains when evidence is thin." |
 | 2:30 | Open the fault injection panel, choose *provider error* → Submit → failed → as bob, **Recover** | "Failures are bounded (two attempts) and honest: status failed, with an error code and nothing synthesized. Recover resumes from the last checkpoint without re-running finished steps." |
-| 2:50 | Dashboard tab | "These counts come from the store, not constants. Limits: single process, demo roles aren't auth, lexical retrieval scored 19 of 23 on my held-out set, and there's no real ad integration." |
+| 2:50 | Dashboard tab | "These counts come from the store, not constants. Limits: single process, demo roles aren't auth, lexical retrieval scored 21 of 24 on fresh held-out questions and still made one confident wrong answer, and there's no real ad integration." |
 
 Optional crash drill (+1 min): start with `DEMO_CRASH_POINT=after_commit ./scripts/start.sh`, approve a pending run (the process exits), restart normally, then Recover. The UI shows "Replay detected … not re-executed", and the action count is still 1.

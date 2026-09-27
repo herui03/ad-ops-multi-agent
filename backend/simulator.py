@@ -58,6 +58,11 @@ class Simulator:
                              {"action_id": existing["action_id"], "idempotency_key": key,
                               "note": "execute node re-ran after an interruption; existing ledger row reused"})
                 return Store._action_dict(existing), True
+            run = c.execute("SELECT status, cancel_requested FROM runs WHERE run_id=?", (run_id,)).fetchone()
+            if run is None or run["status"] not in ("resuming", "running") or run["cancel_requested"]:
+                raise GateViolation("run_cancelled" if run is not None and (run["status"] == "cancelled" or
+                                                                          run["cancel_requested"]) else "gate_violation",
+                                    "run is not in an executable state (cancelled, terminal or not resuming)")
             prop = c.execute("SELECT * FROM proposals WHERE proposal_id=?", (proposal_id,)).fetchone()
             approved = c.execute(
                 "SELECT decision_id FROM decisions WHERE run_id=? AND proposal_id=? AND revision=? AND"

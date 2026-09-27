@@ -224,6 +224,15 @@ async function main() {
   await waitStatus(page, 'interrupted');
   const s5b = await shot(page, '10-interrupted-after-crash');
   await setRole(page, 'approver');
+  // R5-01: the action is already committed, so cancelling must be refused, not silently "cancelled"
+  expectedHttpError = 'cancel a run with a committed action (expect 409)';
+  await page.getByTestId('cancel-run').click();
+  await page.getByTestId('action-error').filter({ hasText: 'action_already_committed' }).waitFor();
+  expectedHttpError = null;
+  const refusedStatus = (await apiGet(`/api/runs/${r5}`)).status;
+  const s5r = await shot(page, '10b-cancel-refused-action-committed');
+  record('cancel refused once a simulated action is committed (reconcile instead)', refusedStatus === 'interrupted',
+    { run_id: r5, screenshot: s5r });
   await page.getByTestId('recover-run').click();
   await waitStatus(page, 'completed');
   await page.getByTestId('replay-note').waitFor();
@@ -262,6 +271,13 @@ async function main() {
   await waitStatus(page, 'completed');
   const outcome9 = await page.getByTestId('answer-outcome').innerText();
   const s7c = await shot(page, '16-abstain');
+  const r9b = await submit(page, 'What is the penalty for violating the truth in advertising framework?');
+  await waitStatus(page, 'completed');
+  const outcome9b = await page.getByTestId('answer-outcome').innerText();
+  await page.getByTestId('candidate-evidence').waitFor();
+  const s7d = await shot(page, '16b-abstain-with-candidate-evidence');
+  record('keyword match without support: abstain, candidate evidence shown separately', outcome9b === 'abstained' &&
+    (await page.getByTestId('citation').count()) >= 1, { run_id: r9b, screenshot: s7d });
   record('grounded answer / conflict / abstain shown with citations', outcome7 === 'answered' && outcome8 === 'conflict' &&
     outcome9 === 'abstained', { runs: [r7, r8, r9], screenshots: [s7a, s7b, s7c] });
 

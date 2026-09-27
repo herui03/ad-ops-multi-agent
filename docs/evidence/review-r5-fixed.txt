@@ -1,0 +1,14 @@
+# Review round 5 tests against the FIXED code (same test file as review-r5-old-c149c38.txt)
+# command: python -m pytest -q --tb=line -rA tests/test_review_r5.py ; then 25 repeated runs
+PASSED tests/test_review_r5.py::test_r5_01_cancel_during_question_planner_is_not_completed
+PASSED tests/test_review_r5.py::test_r5_01_cancel_during_last_step_of_deliverable_is_not_completed
+PASSED tests/test_review_r5.py::test_r5_01_cancel_during_last_campaign_step_never_reaches_gate
+PASSED tests/test_review_r5.py::test_r5_01_cancel_between_proposal_and_interrupt_never_executes
+PASSED tests/test_review_r5.py::test_r5_01_simulator_refuses_a_cancelled_run
+PASSED tests/test_review_r5.py::test_r5_01_cancel_after_committed_action_is_refused_not_hidden
+PASSED tests/test_review_r5.py::test_r5_01_cancel_after_recorded_but_unexecuted_approve_stays_cancelled
+PASSED tests/test_review_r5.py::test_r5_02_concurrent_recover_claims_once
+PASSED tests/test_review_r5.py::test_r5_02_transition_is_strict_unless_marked_idempotent
+PASSED tests/test_review_r5.py::test_r5_02_recover_on_finished_checkpoint_does_not_leave_run_running
+10 passed in 1.22s
+repeat runs of tests/test_review_r5.py + concurrent-click + cooperative-cancel tests: 25, failing runs: 0
