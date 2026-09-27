@@ -1,0 +1,45 @@
+# R5-04 reset safety. Linux (session container), Python 3.12.3. macOS untested; Windows unsupported.
+# All reset invocations target disposable pytest tmp_path fixtures or a mkdtemp directory; root/home/repo refusals are checked via the pure validate_target() only.
+
+## OLD code 3860c124ed3a614b5cedc0b8053e5b118a4e8ba9: python -m pytest -q --tb=line -rA tests/test_reset.py
+tests/test_reset.py:61: AssertionError: reset ran while the server was live: archived <tmp>/test_r5_04_reset_refuses_while0/data -> <tmp>/test_r5_04_reset_refuses_while0/data-archive-20260927T140059Z
+tests/test_reset.py:80: AssertionError: <tmp>/test_r5_04_reset_refuses_runni0/alias-to-data: archived <tmp>/test_r5_04_reset_refuses_runni0/alias-to-data -> <tmp>/test_r5_04_reset_refuses_runni0/data-
+tests/test_reset.py:121: AssertionError: archives: ['data-archive-20260927T120000Z']
+tests/test_reset.py:136: AssertionError: archived <tmp>/test_r5_04_refuses_unrelated_d0/my-notes -> <tmp>/test_r5_04_refuses_unrelated_d0/data-archive-20260927T140059Z
+tests/test_reset.py:136: AssertionError: deleted <tmp>/test_r5_04_refuses_unrelated_d1/my-notes
+tests/test_reset.py:145: AssertionError: assert (0 != 0)
+tests/test_reset.py:154: AssertionError: assert (0 != 0)
+tests/test_reset.py:161: AttributeError: module 'reset_demo_data_under_test' has no attribute 'validate_target'
+tests/test_reset.py:166: ModuleNotFoundError: No module named 'backend.datalock'
+PASSED tests/test_reset.py::test_r5_04_stopped_reset_archives_uniquely_and_keeps_data
+FAILED tests/test_reset.py::test_r5_04_reset_refuses_while_server_running_and_changes_nothing
+FAILED tests/test_reset.py::test_r5_04_reset_refuses_running_server_via_symlink_alias
+FAILED tests/test_reset.py::test_r5_04_same_second_archives_never_nest_or_overwrite
+FAILED tests/test_reset.py::test_r5_04_refuses_unrelated_directory[--confirm]
+FAILED tests/test_reset.py::test_r5_04_refuses_unrelated_directory[--confirm --delete]
+FAILED tests/test_reset.py::test_r5_04_refuses_directory_with_unexpected_content_even_if_marked
+FAILED tests/test_reset.py::test_r5_04_refuses_a_source_checkout - AssertionE...
+FAILED tests/test_reset.py::test_r5_04_validation_refuses_root_home_and_repo_without_touching_them
+FAILED tests/test_reset.py::test_r5_04_server_start_refused_while_reset_holds_exclusive_lock
+9 failed, 1 passed in 0.82s
+
+## FIXED code: python -m pytest -q --tb=line -rA tests/test_reset.py
+PASSED tests/test_reset.py::test_r5_04_reset_refuses_while_server_running_and_changes_nothing
+PASSED tests/test_reset.py::test_r5_04_reset_refuses_running_server_via_symlink_alias
+PASSED tests/test_reset.py::test_r5_04_stopped_reset_archives_uniquely_and_keeps_data
+PASSED tests/test_reset.py::test_r5_04_same_second_archives_never_nest_or_overwrite
+PASSED tests/test_reset.py::test_r5_04_refuses_unrelated_directory[--confirm]
+PASSED tests/test_reset.py::test_r5_04_refuses_unrelated_directory[--confirm --delete]
+PASSED tests/test_reset.py::test_r5_04_refuses_directory_with_unexpected_content_even_if_marked
+PASSED tests/test_reset.py::test_r5_04_refuses_a_source_checkout
+PASSED tests/test_reset.py::test_r5_04_validation_refuses_root_home_and_repo_without_touching_them
+PASSED tests/test_reset.py::test_r5_04_server_start_refused_while_reset_holds_exclusive_lock
+10 passed in 1.05s
+
+## FIXED code: disposable demonstration (running reset -> unchanged hashes; stopped reset -> archive)
+server running; data files: ['.adops-data-marker', 'adops.db', 'adops.db-shm', 'adops.db-wal', 'checkpoints.db', 'checkpoints.db-shm', 'checkpoints.db-wal']
+reset exit code: 4 | refusing: the backend appears to be running (data directory <tmp>/data is locked (a running server holds it); lock file <tmp>/.data.adops.lock). Stop it first. 
+content digest before: e5b3f632976f9133378ece2a78deb58c011344995d13b3b82037323b49b3ab54
+content digest after:  e5b3f632976f9133378ece2a78deb58c011344995d13b3b82037323b49b3ab54 | unchanged: True | run still readable: awaiting_approval
+server stopped; digest after shutdown (WAL checkpointed): 4255822f1678e2c39b71f3327309f5c42959ed100e939e9e78f8d28c04478f44
+server stopped; reset exit code: 0 | archive dirs: 1 | archive digest == pre-reset digest: True | original removed: True

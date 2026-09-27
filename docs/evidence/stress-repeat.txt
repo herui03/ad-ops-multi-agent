@@ -1,0 +1,4 @@
+# command: 25 repeated runs of the concurrency, restart and cooperative-cancel tests
+# for i in $(seq 1 25); do pytest -q tests/test_gate.py::test_ac4_concurrent_clicks_execute_once tests/test_gate.py::test_ac4_concurrent_same_key_double_submit tests/test_restart.py tests/test_gate.py::test_ac9_cancel_while_running_is_cooperative; done
+# Python 3.12.3, 2026-09-27, session container
+repeat runs: 25, failing runs: 0 (10 tests per run)

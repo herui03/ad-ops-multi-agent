@@ -1,0 +1,15 @@
+# Follow-up R5-01f reproduction against OLD code 3860c124ed3a614b5cedc0b8053e5b118a4e8ba9
+# crash after ledger commit -> restart -> Recover claims run (running) -> recovery paused by an Event -> cancel
+# command: python -m pytest -q --tb=line tests/test_review_r5.py::test_r5_01f_cancel_during_recovery_of_committed_action_is_refused ; plus probe script
+
+tests/test_review_r5.py:279: AssertionError: {"outcome":"cancel_requested","run":{"run_id":"run_d3cba66fe5e7","thread_id":"thread-run_d3cba66fe5e7","created_at":1790517123.6424372,"updated_at":1790517123.770323,"requester":"alice","request_text":"Plan a year-end campaign for Harbourlight Hotel with 
+1 failed in 6.23s
+
+## probe (old code): observed sequence
+recover: 202
+status while recovery paused: running
+cancel accepted into store (cancel_requested=1): True
+cancel response: 200 cancel_requested
+final status: completed | ledger actions: 1 | result: {"action_id": "simact_1672be3a65f9", "kind": "action", "replay_detected": true, "summary": "Simulated simulated_launch_campaign committed fo
+
+## note: Store.finish at 3860c12 had no ledger check; if the recovery had failed (StepFailed/internal error) after this accepted cancel, finish() would have written status 'cancelled' with 'No action executed' next to an existing ledger row.

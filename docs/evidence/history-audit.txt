@@ -1,0 +1,45 @@
+# History audit, 2026-09-27, after git fetch --all
+# refs: claude/wonderful-cerf-efuysu main origin/claude/wonderful-cerf-efuysu origin/main 
+# commits reachable from all refs: 22; distinct paths ever: 148
+# command: python scripts/audit_history.py   (prints counts/paths only; values never printed)
+
+groq_key: 0 matches in 0 path(s)
+openai_style_key: 0 matches in 0 path(s)
+aws_access_key: 0 matches in 0 path(s)
+github_token: 0 matches in 0 path(s)
+slack_token: 0 matches in 0 path(s)
+private_key_block: 0 matches in 0 path(s)
+assigned_secret: 0 matches in 0 path(s)
+bearer_literal: 0 matches in 0 path(s)
+email: 0 matches in 0 path(s)
+phone_like: 22 matches in 16 path(s): backend/agents/analytics_agent.py, backend/demo_generators.py, backend/tools/ad_api.py, backend/tools/mock_data.py, docs/evidence/baseline-defects.txt, docs/evidence/e2e/repeat-runs.txt, docs/evidence/pytest-py312.txt, docs/evidence/review-r5-old-c149c38.txt, docs/evidence/stress-repeat.txt, rag_documents/harbourlight_brand_guidelines.md, rag_documents/novabyte_brand_guidelines.md, rag_documents/platform_policy_summaries.md, rag_documents/regulation_summaries.md, rag_documents/simads_ad_policy.md, rag_documents/simads_creative_specs.md, rag_documents/vendor_field_notes.md
+real_brand_marina_bay_sands: 3 matches in 2 path(s): frontend/src/components/ChatPanel.jsx, tests/test_orchestrator.py
+platform_affiliation_terms: 16 matches in 4 path(s): backend/tools/ad_api.py, docs/DEFECT_LOG.md, frontend/package-lock.json, frontend/src/components/Dashboard.jsx
+job_application_terms: 44 matches in 9 path(s): README.md, backend/agents/orchestrator.py, docs/ACCEPTANCE.md, docs/ARCHITECTURE.md, docs/DEFECT_LOG.md, docs/INTERVIEW_GUIDE_zh.md, docs/evidence/pytest-py312.txt, scripts/repro_baseline_defects.py, tests/test_restart.py
+
+## Interpretation (manual review by Claude; values still not reproduced here)
+- Credentials: no API keys, tokens, private keys or bearer strings in any reachable blob. .env.example exists in
+  2 historical versions (7e23130, 3d054d1); every KEY/SECRET/TOKEN field in both has an EMPTY value. An earlier
+  draft of this scan reported non-empty values because its regex crossed a line break; fixed ([ \t] instead of \s).
+- Email addresses in file contents: none. (Commit metadata carries the GitHub noreply author address, which is
+  normal for public commits.)
+- phone_like: all hits are ISO dates (e.g. mock date ranges, document "effective" dates) or numeric test output,
+  not phone numbers.
+- job_application_terms: all hits are the word "resume" (LangGraph Command(resume=...) / "resume the run"). No
+  CV, cover letter, job application or salary files or text exist in history. docs/CV_TEMPLATES.md is a
+  conditional template with no personal data beyond what README already showed.
+- Personal info that is intentional and was already public: the author name and a LinkedIn profile URL in the
+  README footer, the NTU course code BC3415. Nothing new was added.
+- Real third-party names in HISTORY ONLY (not in the current tree):
+  * the brand "Marina Bay Sands" / "MBS" used as an illustrative client in old UI quick actions
+    (frontend/src/components/ChatPanel.jsx) and an old unit test (tests/test_orchestrator.py), and visible as text
+    in the old binary screenshot docs/screenshot.png (removed in d92a676);
+  * platform-style names: the original package name "wechat-ad-agent-ui" (commit 5415d06), and old mock placement
+    labels (backend/tools/ad_api.py, frontend/src/components/Dashboard.jsx).
+  These are sample labels, not customer records. No customer data (contacts, contracts, spend figures of a real
+  client) was found. Removing them from history would need a history rewrite + force-push of main; that was NOT
+  done (out of scope, and it would rewrite a shared public branch). Current tree: none of these names, apart
+  from DEFECT_LOG A1 quoting the old placement labels to document their removal.
+- Binary files (PNG screenshots, docs/screenshots/*) cannot be regex-scanned; the current ones were reviewed by eye
+  (fictional names only).
+- Commit messages contain Claude session links (claude.ai/code/session_...); these are not credentials.
