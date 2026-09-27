@@ -4,7 +4,7 @@
     "total": 14,
     "browser": "chromium (playwright 1.56.1)",
     "base": "http://127.0.0.1:8765",
-    "when": "2026-09-27T08:19:27.475Z",
+    "when": "2026-09-27T08:30:41.649Z",
     "data_dir": "temporary (deleted after run)"
   },
   "results": [
@@ -16,7 +16,7 @@
     {
       "name": "gate pauses with zero actions",
       "pass": true,
-      "run_id": "run_0c36c59891e5",
+      "run_id": "run_d57e8750f6b9",
       "screenshot": "docs/screenshots/01-awaiting-approval.png"
     },
     {
@@ -34,13 +34,13 @@
     {
       "name": "reject is terminal with zero actions",
       "pass": true,
-      "run_id": "run_9555d6873bf7",
+      "run_id": "run_590d6a569189",
       "screenshot": "docs/screenshots/04-rejected.png"
     },
     {
       "name": "blocked proposal refused, revision 2 approved",
       "pass": true,
-      "run_id": "run_7b2d332c6f4f",
+      "run_id": "run_92779fe0e066",
       "screenshots": [
         "docs/screenshots/05-blocked-by-compliance.png",
         "docs/screenshots/06-revised-then-approved.png"
@@ -49,7 +49,7 @@
     {
       "name": "pending run survives process kill and resumes the same thread",
       "pass": true,
-      "run_id": "run_ab89968fdc14",
+      "run_id": "run_0f0934b20eef",
       "screenshots": [
         "docs/screenshots/07-server-killed-while-pending.png",
         "docs/screenshots/08-approved-after-restart.png"
@@ -58,7 +58,7 @@
     {
       "name": "crash after commit: recover reconciles without a second action",
       "pass": true,
-      "run_id": "run_135e086731ac",
+      "run_id": "run_fd2ca39c8a6d",
       "note": "server exit code 70",
       "screenshots": [
         "docs/screenshots/09-server-crashed-after-commit.png",
@@ -69,7 +69,7 @@
     {
       "name": "provider failure is explicit; recover resumes to the gate",
       "pass": true,
-      "run_id": "run_c9fd30b22022",
+      "run_id": "run_6ed32e409fad",
       "screenshots": [
         "docs/screenshots/12-provider-failure.png",
         "docs/screenshots/13-recovered-to-gate.png"
@@ -79,9 +79,9 @@
       "name": "grounded answer / conflict / abstain shown with citations",
       "pass": true,
       "runs": [
-        "run_cdd62f667a31",
-        "run_5b464dea6081",
-        "run_ece7f12d7fef"
+        "run_6072f769dd55",
+        "run_afce3095c2e1",
+        "run_bbba77a19a05"
       ],
       "screenshots": [
         "docs/screenshots/14-grounded-answer.png",
@@ -92,7 +92,7 @@
     {
       "name": "HTML/script shown as text, no dialog, CSV formula neutralised",
       "pass": true,
-      "run_id": "run_b52f8a3850cb",
+      "run_id": "run_39bd8ede6240",
       "screenshot": "docs/screenshots/17-unsafe-text-rendered-as-text.png"
     },
     {
@@ -127,7 +127,17 @@
           "expectedNegativeStep": "approve a blocked proposal (expect 422)"
         },
         {
-          "text": "WebSocket connection to 'ws://127.0.0.1:8765/ws/runs/run_ab89968fdc14' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+          "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+          "duringServerDown": true,
+          "expectedNegativeStep": null
+        },
+        {
+          "text": "WebSocket connection to 'ws://127.0.0.1:8765/ws/runs/run_0f0934b20eef' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+          "duringServerDown": true,
+          "expectedNegativeStep": null
+        },
+        {
+          "text": "WebSocket connection to 'ws://127.0.0.1:8765/ws/runs/run_fd2ca39c8a6d' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
           "duringServerDown": true,
           "expectedNegativeStep": null
         },
@@ -137,11 +147,6 @@
           "expectedNegativeStep": null
         },
         {
-          "text": "WebSocket connection to 'ws://127.0.0.1:8765/ws/runs/run_135e086731ac' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
-          "duringServerDown": true,
-          "expectedNegativeStep": null
-        },
-        {
           "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
           "duringServerDown": true,
           "expectedNegativeStep": null
@@ -152,12 +157,7 @@
           "expectedNegativeStep": null
         },
         {
-          "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
-          "duringServerDown": true,
-          "expectedNegativeStep": null
-        },
-        {
-          "text": "WebSocket connection to 'ws://127.0.0.1:8765/ws/runs/run_135e086731ac' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+          "text": "WebSocket connection to 'ws://127.0.0.1:8765/ws/runs/run_fd2ca39c8a6d' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
           "duringServerDown": true,
           "expectedNegativeStep": null
         }

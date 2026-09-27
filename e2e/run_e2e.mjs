@@ -121,6 +121,8 @@ async function main() {
   page.on('pageerror', (e) => consoleLog.push({ text: `pageerror: ${e.message}`, duringServerDown: serverDownWindow }));
 
   await page.goto(BASE);
+  // wait for /api/meta to load; before that the badge shows a placeholder
+  await page.getByTestId('mode-badge').filter({ hasText: /DEMO|LIVE/ }).waitFor();
   const badge = await page.getByTestId('mode-badge').innerText();
   record('ui loads in demo mode with explicit label', badge.includes('DEMO'), { note: badge });
 

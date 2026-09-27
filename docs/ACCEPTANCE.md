@@ -5,7 +5,7 @@ All results come from runs by Claude in the development container on 2026-09-27.
 | Suite | Command | Result | Evidence |
 |---|---|---|---|
 | Backend tests | `python -m pytest -v -rs` (Python 3.12.3, clean venv) | **82 passed, 1 skipped** | [evidence/pytest-py312.txt](evidence/pytest-py312.txt) |
-| Browser E2E | `node e2e/run_e2e.mjs` (real uvicorn process, Chromium) | **14/14 checks** | [evidence/e2e/results.json](evidence/e2e/results.json), [screenshots](screenshots/), [recorded replay](replay/index.html) |
+| Browser E2E | `node e2e/run_e2e.mjs` (real uvicorn process, Chromium) | **14/14 checks in 3 consecutive runs** (an earlier run was 13/14 because of a harness race, since fixed; see DEFECT_LOG C6 and [repeat-runs.txt](evidence/e2e/repeat-runs.txt)) | [evidence/e2e/results.json](evidence/e2e/results.json), [screenshots](screenshots/), [recorded replay](replay/index.html) |
 | Grounding eval | `python scripts/run_eval.py` | **19/23 held-out cases** (4 failures documented) | [evidence/eval-heldout.md](evidence/eval-heldout.md) |
 | Repeatability | 25 repeated runs of the concurrency, restart and cancel tests | 0 failing runs | [evidence/stress-repeat.txt](evidence/stress-repeat.txt) |
 

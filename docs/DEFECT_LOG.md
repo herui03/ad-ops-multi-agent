@@ -41,7 +41,8 @@ Baseline = `main` at `5ac2c35eb61ff21746ab9252eeddffe3aeefad3a`. Reproduction: `
 | C3 | E2E console check | Browser logs deliberate 403/422 refusals and connection errors during a deliberate server crash as console errors | Classified by window (deliberate negative step / server down). Unexpected errors: 0 of 9 logged |
 | C4 | Screenshot review (390 px) | On mobile the selected run and its approval card were below the full runs list | Fixed: the run detail is ordered first on small screens (`21-mobile-approved.png`) |
 | C5 | Held-out eval, first run | Grounding misses: S4 (wrong chunk ranked first → abstained), **U5 (answered an unanswerable question with an irrelevant CAP-code quote)**, C4 (missed a tagged conflict), I4 (injected text in the question diluted matching → abstained) | **Open.** Not tuned away; see EVALUATION.md |
-| C6 | Design review | A timed-out provider call cannot be killed in Python | Documented limitation; the live provider's HTTP timeout ends the call |
+| C6 | E2E re-run from a clean export of `d92a676` (13/14) | Test-harness race: the first check read the mode badge before `/api/meta` returned, so it saw the placeholder "…" | Fixed: the check waits for the badge text. The E2E was re-run 3 times afterwards (see ACCEPTANCE.md) |
+| C7 | Design review | A timed-out provider call cannot be killed in Python | Documented limitation; the live provider's HTTP timeout ends the call |
 
 ## Not independently verified
 
