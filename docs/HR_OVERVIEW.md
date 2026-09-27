@@ -41,6 +41,6 @@ submit → see the pause → wrong role refused → restart → approve → bloc
 - All tests are developer tests, not user acceptance by a real stakeholder.
 
 ## Who did what (AI attribution)
-**Herui Dou** set the direction, requirements and acceptance criteria. **Claude** (an AI coding assistant) wrote the code, tests and documentation in this rebuild. **Codex** (another AI tool) independently reviewed the source. Herui's own hands-on role is limited to what Herui can explain and personally reproduce; see [CV_TEMPLATES.md](CV_TEMPLATES.md). Earlier history in this repository was not independently attributed.
+**Herui Dou** set the project direction, its intended use as a job-search portfolio piece, and the priorities (reliability over agent count, honest limits). Herui did not personally write the detailed requirements or acceptance criteria listed in these docs. **Codex** (an AI review tool) turned that scope into review requirements and acceptance cases, and independently reviewed the source. **Claude** (an AI coding assistant) wrote the code, tests and documentation in this rebuild. Herui's own hands-on role is limited to what Herui can explain and personally reproduce; see [CV_TEMPLATES.md](CV_TEMPLATES.md). Earlier history in this repository was not independently attributed.
 
 Security and privacy check: all reachable git history was scanned for credentials and personal files. None were found. Summary: [evidence/history-audit.txt](evidence/history-audit.txt).
