@@ -1,8 +1,10 @@
 # Ad Ops Approval Gate: one-page summary
 
-**Problem.** In advertising operations, a client request becomes a media plan, ad copy and a policy check, and a manager approves before budget is committed. AI can draft that package quickly. The risk is a system that acts without a real sign-off, or acts twice.
+In advertising operations, a client request becomes a media plan, ad copy and a policy check, and a manager approves before any budget is committed. AI agents can draft that package quickly. The harder part is making sure nothing acts without a real sign-off, and nothing acts twice.
 
-**What the tool does.** Specialist AI agents draft the plan and then **stop at an approval gate**. A (simulated) action runs only after an approver accepts the exact version they reviewed. The pause survives server restarts. Double clicks, outdated versions and crashes cannot trigger the action twice or without approval.
+This project is an AI-workflow architecture prototype built around that sign-off. A LangGraph workflow routes the request through specialist agents, then **stops at an approval gate**. A simulated action runs only after an approver accepts the exact version they reviewed, and the pause survives server restarts. In the tests, double clicks, outdated versions and crashes near the action did not produce a second or unapproved action in the local simulated ledger.
+
+By default the agents' drafts come from deterministic rules, so the whole workflow runs offline with no API key. An optional live LLM provider is wired in but has not been evaluated.
 
 ## Example
 
@@ -39,13 +41,12 @@ Run `./scripts/start.sh` and open http://127.0.0.1:8000. No API key is needed. T
 - 114 automated backend tests pass; 1 optional live-LLM test is skipped without an API key.
 - 16/16 browser checks against a real server process, including killing and restarting it.
 - 13 defects in the original prototype were reproduced and each fixed with a test ([DEFECT_LOG.md](DEFECT_LOG.md)).
-- Policy lookup on held-out questions: 21/24 in the latest round ([EVALUATION.md](EVALUATION.md)).
-- Git history was scanned for credentials and personal files; none were found ([evidence/history-audit.txt](evidence/history-audit.txt)).
+- Policy-lookup method, frozen held-out results and later regression checks: [EVALUATION.md](EVALUATION.md).
 
 ## Scope and limits
 
 - The ad platform, clients, campaign figures and policies are fictional or mock data; the regulation and platform-policy notes are unverified summaries of public sources. No real integration, no spend.
 - Demo roles are not a login; the app is meant to run locally as a single process.
-- The default provider is deterministic rules; the optional live LLM has not been run.
+- Drafts come from deterministic rules by default; the optional live LLM has not been run or evaluated.
 - Policy lookup is keyword-based and returns excerpts for human review.
 - Tests are developer-run in a Linux container; macOS is untested.

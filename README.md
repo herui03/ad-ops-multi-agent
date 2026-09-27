@@ -2,7 +2,7 @@
 
 [![tests](https://github.com/herui03/ad-ops-multi-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/herui03/ad-ops-multi-agent/actions/workflows/tests.yml)
 
-Advertising-operations teams turn a client brief into a media plan, ad copy and a policy check, and a manager signs off before budget is committed. This project automates the drafting with a LangGraph multi-agent workflow and makes the sign-off enforceable. The workflow pauses at a durable approval gate, and a (simulated) action runs only after an approver accepts the exact proposal revision they reviewed. Restarts, double clicks, stale revisions, provider failures and crashes near the action cannot bypass the gate or repeat the action.
+Advertising-operations teams turn a client brief into a media plan, ad copy and a policy check, and a manager signs off before budget is committed. This project automates the drafting with a LangGraph multi-agent workflow and makes the sign-off enforceable. The workflow pauses at a durable approval gate, and a (simulated) action runs only after an approver accepts the exact proposal revision they reviewed. In the test suite, restarts, double clicks, stale revisions, provider failures and crashes near the action neither bypassed the gate nor produced a second action. That result rests on the local SQLite transaction design of the simulated ledger; it is not a general guarantee for external systems.
 
 It runs offline by default with a deterministic demo provider. The ad platform, clients and actions are simulated; see [Scope and limits](#scope-and-limits).
 
@@ -67,7 +67,7 @@ plan ─► step ⟲ ─► build_proposal ─► approval_gate (interrupt) ─�
                          └──── revise ───────┤─ cancel ─► cancelled
 ```
 
-| Guarantee | Mechanism | Tests |
+| Control | Mechanism | Tests |
 |---|---|---|
 | No action before approval | `interrupt()` at the gate; the simulator re-checks for an approve decision on the exact id, revision and hash in the same transaction as the ledger insert | `test_ac1_*`, `test_simulator_refuses_without_recorded_approval` |
 | A pending run survives a restart | SQLite checkpointer with a stable `thread_id`; startup reconciliation | `test_ac2_*`; E2E kills the real server |
@@ -110,7 +110,7 @@ Questions about who approved or authored a document abstain, because no source r
 |---|---|---|
 | Backend tests | `pytest -q -rs` | 114 passed, 1 skipped (the live-provider test needs `GROQ_API_KEY`) |
 | Browser end-to-end | `node e2e/run_e2e.mjs` | 16/16 checks against a real server process (approval, role denial, rejection, revision, kill while pending, crash after commit then recovery, provider failure then recovery, policy lookup, unsafe text, dashboard, 390 px mobile) |
-| Policy lookup | `python scripts/run_eval.py [--cases …]` | held-out: 19/23 (round 1), 21/24 (round 5); the same case sets as regression after later fixes: 22/23, 22/24 |
+| Policy lookup | `python scripts/run_eval.py [--cases …]` | held-out, frozen before later fixes: 19/23 (round 1), 21/24 (round 5); the same cases reused as regression after the fixes: 22/23, 22/24 |
 | Original prototype defects | `scripts/repro_baseline_defects.py` | 13/13 reproduced on the original code, each mapped to a fixing test |
 
 Per-case results, screenshots and logs: [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md). Defects found in review and their fixes: [docs/DEFECT_LOG.md](docs/DEFECT_LOG.md).
