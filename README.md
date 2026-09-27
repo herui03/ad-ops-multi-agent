@@ -2,6 +2,11 @@
 
 [![tests](https://github.com/herui03/ad-ops-multi-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/herui03/ad-ops-multi-agent/actions/workflows/tests.yml)
 
+> **Work in progress: review checkpoint.** The backend has been rebuilt around a durable LangGraph approval gate
+> (see `backend/`, `tests/`, `docs/evidence/baseline-defects.txt`). The React UI still targets the old API and is being
+> rewritten; the rest of this README describes the previous version until the final commit replaces it.
+> Offline check: `pip install -r requirements.txt && pytest -q -rs && python scripts/demo_cli.py`.
+
 A multi-agent assistant for a digital advertising sales & operations team, built with LangGraph, FastAPI and React. An account manager types a request in plain English ("plan a CNY campaign for a Marina Bay hotel targeting Chinese tourists"); an orchestrator agent breaks it into sub-tasks, runs six specialist agents in dependency order, streams their status to the UI over WebSocket, raises approval requests for large budgets and blocking compliance issues, and returns one client-ready brief.
 
 > **Project status: portfolio prototype on a simulated use case.**

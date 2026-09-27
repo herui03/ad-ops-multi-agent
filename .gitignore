@@ -37,3 +37,6 @@ venv_py313/
 chroma_db/
 *.exe
 __MACOSX/
+
+# App data (SQLite store + LangGraph checkpoints)
+data/

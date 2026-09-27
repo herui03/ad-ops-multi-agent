@@ -1,17 +1,13 @@
-from backend.agents.base_agent import BaseAgent
+from backend.agents.base_agent import AgentSpec
+from backend.contracts import CreativeOutput
 from backend.prompts.templates import CREATIVE_SYSTEM
 
 
-class CreativeAgent(BaseAgent):
-    agent_name = "creative"
-    system_prompt = CREATIVE_SYSTEM
+def _unique_ids(out, _ctx) -> None:
+    ids = [c.creative_id for c in out.creatives]
+    if len(ids) != len(set(ids)):
+        raise ValueError("creative_id values must be unique")
 
-    async def run(self, session_id, task, context=None):
-        context = context or {}
-        strategy_output = self.memory.get_agent_output(session_id, "strategy")
-        if strategy_output:
-            context["media_plan"] = strategy_output
-        insight_output = self.memory.get_agent_output(session_id, "insight")
-        if insight_output:
-            context["audience_insight"] = insight_output
-        return await super().run(session_id, task, context)
+
+SPEC = AgentSpec(name="creative", system_prompt=CREATIVE_SYSTEM, contract=CreativeOutput, reads=("strategy", "insight"),
+                 semantic_check=_unique_ids, description="Ad copy per placement")

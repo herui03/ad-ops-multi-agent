@@ -1,32 +1,15 @@
-
+# Local only. Do not expose this service publicly: demo roles are not authentication.
 services:
-  backend:
+  app:
     build:
       context: .
       dockerfile: Dockerfile.backend
     ports:
-      - "8000:8000"
-    env_file:
-      - .env
-    depends_on:
-      - redis
+      - "127.0.0.1:8000:8000"
+    environment:
+      - LLM_PROVIDER=demo
     volumes:
-      - ./backend:/app/backend
-
-  frontend:
-    build:
-      context: ./frontend
-    ports:
-      - "5173:5173"
-    depends_on:
-      - backend
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
+      - adops_data:/app/data
 
 volumes:
-  redis_data:
+  adops_data:

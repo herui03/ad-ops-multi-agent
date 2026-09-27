@@ -1,8 +1,17 @@
+# Builds the UI, then serves it from FastAPI on one port (demo mode by default).
+FROM node:20-alpine AS ui
+WORKDIR /ui
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
 FROM python:3.12-slim
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend ./backend
 COPY rag_documents ./rag_documents
+COPY --from=ui /ui/dist ./frontend/dist
 EXPOSE 8000
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

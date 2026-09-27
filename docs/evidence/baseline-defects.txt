@@ -1,0 +1,21 @@
+# Baseline defect reproduction
+# baseline commit: 5ac2c35eb61ff21746ab9252eeddffe3aeefad3a (main before this PR)
+# command: GROQ_API_KEY=placeholder python scripts/repro_baseline_defects.py <baseline-worktree>
+# env: Python 3.11.15, baseline requirements.txt (langgraph 0.2.60, langchain-groq 0.2.4); Groq replaced by a scripted stub, no network
+# run by: Claude (automated), 2026-09-27
+
+REPRODUCED     D1 http-decide-unknown-id: status=200 body={'approval_id': 'does-not-exist', 'status': 'approved', 'message': 'Decision recorded'}
+REPRODUCED     D2 ws-decide-bypass: ws reply={'type': 'approval_resolved', 'approval_id': 'nope'}
+REPRODUCED     D2b ws-malformed-json: connection error: JSONDecodeError
+REPRODUCED     D3 pending-approval-not-a-pause: pending=1 final_message_prefix='FINAL BRIEF'
+REPRODUCED     D11 approval-decisions-unused: 'approval_decisions' occurrences in orchestrator.py=2 (declared + initialised only)
+REPRODUCED     D4 llm-approval-flag-yields-no-gate: pending=[] finalized='FINAL BRIEF'
+REPRODUCED     D5 dag-fails-open: cycle phases=[['strategy', 'creative']] dangling phases=[['strategy']]
+REPRODUCED     D6 failed-agent-shown-completed: ui statuses=['running', 'completed'] trace_success=False final='FINAL BRIEF'
+REPRODUCED     D7 malformed-plan-fallback-executes: agents executed=['insight']
+REPRODUCED     D8 parse-error-counts-as-success: success=True output_keys=['_parse_error', 'raw_response']
+REPRODUCED     D8b wrong-schema-counts-as-success: success=True output=['a', 'list', 'not', 'an', 'object']
+REPRODUCED     D9 dashboard-hardcoded: stats={'active_campaigns': 12, 'total_clients': 48, 'monthly_spend_cny': 2850000, 'avg_roas': 2.8, 'pending_approvals': 3}
+REPRODUCED     D10 no-checkpointer: graph.checkpointer=None
+
+13/13 baseline defects reproduced
