@@ -1,0 +1,167 @@
+{
+  "summary": {
+    "passed": 14,
+    "total": 14,
+    "browser": "chromium (playwright 1.56.1)",
+    "base": "http://127.0.0.1:8765",
+    "when": "2026-09-27T08:19:27.475Z",
+    "data_dir": "temporary (deleted after run)"
+  },
+  "results": [
+    {
+      "name": "ui loads in demo mode with explicit label",
+      "pass": true,
+      "note": "DEMO · deterministic provider · offline"
+    },
+    {
+      "name": "gate pauses with zero actions",
+      "pass": true,
+      "run_id": "run_0c36c59891e5",
+      "screenshot": "docs/screenshots/01-awaiting-approval.png"
+    },
+    {
+      "name": "wrong demo role is refused by the server",
+      "pass": true,
+      "note": "role_not_permitted (HTTP 403): role 'requester' cannot approve; approver role re",
+      "screenshot": "docs/screenshots/02-role-denied.png"
+    },
+    {
+      "name": "approve executes exactly one simulated action (double click)",
+      "pass": true,
+      "screenshot": "docs/screenshots/03-approved-simulated-action.png",
+      "note": "actions=1 decisions=1"
+    },
+    {
+      "name": "reject is terminal with zero actions",
+      "pass": true,
+      "run_id": "run_9555d6873bf7",
+      "screenshot": "docs/screenshots/04-rejected.png"
+    },
+    {
+      "name": "blocked proposal refused, revision 2 approved",
+      "pass": true,
+      "run_id": "run_7b2d332c6f4f",
+      "screenshots": [
+        "docs/screenshots/05-blocked-by-compliance.png",
+        "docs/screenshots/06-revised-then-approved.png"
+      ]
+    },
+    {
+      "name": "pending run survives process kill and resumes the same thread",
+      "pass": true,
+      "run_id": "run_ab89968fdc14",
+      "screenshots": [
+        "docs/screenshots/07-server-killed-while-pending.png",
+        "docs/screenshots/08-approved-after-restart.png"
+      ]
+    },
+    {
+      "name": "crash after commit: recover reconciles without a second action",
+      "pass": true,
+      "run_id": "run_135e086731ac",
+      "note": "server exit code 70",
+      "screenshots": [
+        "docs/screenshots/09-server-crashed-after-commit.png",
+        "docs/screenshots/10-interrupted-after-crash.png",
+        "docs/screenshots/11-recovered-replay-detected.png"
+      ]
+    },
+    {
+      "name": "provider failure is explicit; recover resumes to the gate",
+      "pass": true,
+      "run_id": "run_c9fd30b22022",
+      "screenshots": [
+        "docs/screenshots/12-provider-failure.png",
+        "docs/screenshots/13-recovered-to-gate.png"
+      ]
+    },
+    {
+      "name": "grounded answer / conflict / abstain shown with citations",
+      "pass": true,
+      "runs": [
+        "run_cdd62f667a31",
+        "run_5b464dea6081",
+        "run_ece7f12d7fef"
+      ],
+      "screenshots": [
+        "docs/screenshots/14-grounded-answer.png",
+        "docs/screenshots/15-conflict.png",
+        "docs/screenshots/16-abstain.png"
+      ]
+    },
+    {
+      "name": "HTML/script shown as text, no dialog, CSV formula neutralised",
+      "pass": true,
+      "run_id": "run_b52f8a3850cb",
+      "screenshot": "docs/screenshots/17-unsafe-text-rendered-as-text.png"
+    },
+    {
+      "name": "dashboard shows stored aggregates",
+      "pass": true,
+      "note": "pending=2 actions=4",
+      "screenshot": "docs/screenshots/18-dashboard.png"
+    },
+    {
+      "name": "mobile 390px: no horizontal overflow, approval works by tap",
+      "pass": true,
+      "note": "overflow px mobile=0,0,0 desktop=0",
+      "screenshots": [
+        "docs/screenshots/19-mobile-proposal.png",
+        "docs/screenshots/20-mobile-recovered.png",
+        "docs/screenshots/21-mobile-approved.png"
+      ]
+    },
+    {
+      "name": "no console errors outside deliberate server-down / negative-test windows",
+      "pass": true,
+      "note": "9 total, 0 unexpected",
+      "console": [
+        {
+          "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+          "duringServerDown": false,
+          "expectedNegativeStep": "requester approves (expect 403)"
+        },
+        {
+          "text": "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
+          "duringServerDown": false,
+          "expectedNegativeStep": "approve a blocked proposal (expect 422)"
+        },
+        {
+          "text": "WebSocket connection to 'ws://127.0.0.1:8765/ws/runs/run_ab89968fdc14' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+          "duringServerDown": true,
+          "expectedNegativeStep": null
+        },
+        {
+          "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+          "duringServerDown": true,
+          "expectedNegativeStep": null
+        },
+        {
+          "text": "WebSocket connection to 'ws://127.0.0.1:8765/ws/runs/run_135e086731ac' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+          "duringServerDown": true,
+          "expectedNegativeStep": null
+        },
+        {
+          "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+          "duringServerDown": true,
+          "expectedNegativeStep": null
+        },
+        {
+          "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+          "duringServerDown": true,
+          "expectedNegativeStep": null
+        },
+        {
+          "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+          "duringServerDown": true,
+          "expectedNegativeStep": null
+        },
+        {
+          "text": "WebSocket connection to 'ws://127.0.0.1:8765/ws/runs/run_135e086731ac' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
+          "duringServerDown": true,
+          "expectedNegativeStep": null
+        }
+      ]
+    }
+  ]
+}

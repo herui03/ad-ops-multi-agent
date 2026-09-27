@@ -40,3 +40,4 @@ __MACOSX/
 
 # App data (SQLite store + LangGraph checkpoints)
 data/
+data-archive-*/

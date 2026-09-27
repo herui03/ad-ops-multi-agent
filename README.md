@@ -1,175 +1,147 @@
-# Ad Ops Multi-Agent System
+# Ad Ops Approval Gate: a reliability-first multi-agent prototype
 
 [![tests](https://github.com/herui03/ad-ops-multi-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/herui03/ad-ops-multi-agent/actions/workflows/tests.yml)
 
-> **Work in progress: review checkpoint.** The backend has been rebuilt around a durable LangGraph approval gate
-> (see `backend/`, `tests/`, `docs/evidence/baseline-defects.txt`). The React UI still targets the old API and is being
-> rewritten; the rest of this README describes the previous version until the final commit replaces it.
-> Offline check: `pip install -r requirements.txt && pytest -q -rs && python scripts/demo_cli.py`.
+A request such as *"plan a year-end campaign for Harbourlight Hotel with a S$80,000 budget"* goes to a LangGraph workflow. The workflow validates a plan, runs specialist agents step by step, and assembles a proposal. It then **stops at a durable human approval gate**. Only an approver's decision on that exact proposal revision and hash lets a *simulated* action through. The gate survives server restarts, duplicate clicks, stale revisions, provider failures and crashes near the action.
 
-A multi-agent assistant for a digital advertising sales & operations team, built with LangGraph, FastAPI and React. An account manager types a request in plain English ("plan a CNY campaign for a Marina Bay hotel targeting Chinese tourists"); an orchestrator agent breaks it into sub-tasks, runs six specialist agents in dependency order, streams their status to the UI over WebSocket, raises approval requests for large budgets and blocking compliance issues, and returns one client-ready brief.
+> **What this is:** a portfolio prototype built on a **simulated** advertising-operations use case.
+> **What it is not:** a deployment for any real client or employer, a real ad-platform integration, or anything that spends money.
+>
+> The platform is the fictional **"SimAds sandbox"**. Clients (Harbourlight Hotel, NovaByte) are fictional. Policy documents are fictional or unverified summaries. No affiliation with any advertising platform or company is implied.
+>
+> **Credits:** Herui directed the project; Claude (AI coding assistant) implemented and tested it; Codex independently reviewed the baseline source. See [docs/DEFECT_LOG.md](docs/DEFECT_LOG.md).
 
-> **Project status: portfolio prototype on a simulated use case.**
-> This is a personal/course project, not a production system and not a deployment for any real client or employer. The "platform" is a generic, unnamed cross-border social advertising platform; campaign numbers, benchmarks and dashboard figures are hard-coded sample data; client and brand names in prompts and examples are illustrative. The project is not affiliated with, endorsed by, or built on behalf of any advertising platform or company, and it uses no non-public data. Some mock placement labels in the sample data are generic stand-ins for common social-ad formats and should not be read as describing a specific real product.
+![Proposal paused at the approval gate](docs/screenshots/01-awaiting-approval.png)
 
-![Ad Ops Agent UI](docs/screenshot.png)
+## The problem it models
 
-## The business problem (as simulated)
+An ad-ops team turns a client brief into a media plan, ad copy and a policy check, and a manager signs off before money moves. Letting AI agents draft that package is easy. The hard part is making the sign-off **real**:
 
-A Singapore sales team sells social advertising to local brands that want to reach Chinese-speaking visitors and residents. A single client request ("plan a CNY campaign for this hotel") normally touches several people: someone researches the audience, a media planner builds the budget split, a copywriter drafts ads, someone checks the copy against ad policy, and a manager signs off on spend. The prototype explores whether an orchestrated set of LLM agents can produce a first draft of that whole package in one pass, while keeping a human in charge of the two decisions that carry real risk: **how much money to commit** and **whether copy that fails policy review goes out**.
+- nothing executes before approval;
+- the approval covers exactly what was reviewed;
+- a restart or double click cannot skip the gate or repeat the action;
+- failures show up as failures, not as confident output.
 
-## What I built
+This repository focuses on that part. Agent count is not the point.
 
-All code in this repository was written for this project:
+## Quick start (offline, no key)
 
-- **Orchestrator** (`backend/agents/orchestrator.py`): a LangGraph state machine with an LLM planning step, a routing branch that answers simple knowledge questions directly, dependency-ordered agent execution, a human-review node and a synthesis step.
-- **Six specialist agents** (`backend/agents/`) sharing a common `BaseAgent` that calls Groq in JSON mode, parses the output, times the call and writes the result to shared memory. System prompts and per-agent JSON output contracts live in `backend/prompts/templates.py`.
-- **Compliance RAG** (`backend/rag.py`): a hand-written TF-IDF retriever over a small regulation corpus, with no embedding API or vector database.
-- **Human approval flow**: approval records created by the graph, stored in shared memory, listed and resolved through REST and WebSocket endpoints, and shown in an approval queue in the UI.
-- **Shared memory** (`backend/memory/shared_memory.py`): Redis when `REDIS_URL` is set, otherwise an in-process dict with TTLs.
-- **Mock ad platform client and analytics helpers** (`backend/tools/`): sample campaign stats, industry benchmarks, creatives, and a benchmark-deviation anomaly detector.
-- **FastAPI backend** (`backend/main.py`) and a **React 18 + Vite + Tailwind UI** (`frontend/src/`): chat, live agent status, approval queue, dashboard and campaign view.
-- **Tests and tooling**: offline unit tests, opt-in live LLM tests, a routing demo script, Docker Compose, and a GitHub Actions workflow that runs the unit tests.
+```bash
+./scripts/start.sh            # creates .venv, installs, builds the UI once, serves http://127.0.0.1:8000
+```
+
+The default provider is **deterministic demo rules**, not a language model. It is labelled in the UI and API. No API key or network is needed after install. Mac and manual steps, the optional live provider, recovery and reset are in [docs/RUNBOOK.md](docs/RUNBOOK.md). There is also a terminal-only walkthrough: `python scripts/demo_cli.py`.
+
+Until the PR is merged, use branch `claude/wonderful-cerf-efuysu`.
+
+## How it works
+
+```
+React UI ── REST + read-only WebSocket ──► FastAPI ──► WorkflowRunner
+                                                        ├─ LangGraph graph + SqliteSaver (thread_id per run)
+                                                        ├─ SQLite store: runs, events, steps, proposals,
+                                                        │   decisions, idempotency keys, simulated ledger
+                                                        ├─ provider: demo (default) | Groq (opt-in)
+                                                        └─ policy · grounding · simulator
+plan ─► step ⟲ ─► build_proposal ─► approval_gate (interrupt) ─► execute_action ─► finalize
+                         ▲                   ├─ reject ─► rejected
+                         └──── revise ───────┤─ cancel ─► cancelled
+```
+
+Details, state diagrams, the transaction boundary and the design rationale are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+| Guarantee | Mechanism | Proof |
+|---|---|---|
+| Action count stays 0 until approval | `interrupt()` at the gate. The simulator re-checks for an approve decision on the exact id, revision and hash, inside the same transaction as the ledger insert | `test_ac1_*`, `test_simulator_refuses_without_recorded_approval` |
+| Pending survives a restart; the same run resumes | SQLite checkpointer with a stable `thread_id`; startup reconciliation | `test_ac2_*`; E2E kills the real server |
+| One click wins; duplicates replay | One `BEGIN IMMEDIATE` transaction for all checks plus the status change; idempotency keys with a request hash | `test_ac4_*` (8 concurrent threads) |
+| Stale, forged or cross-run decisions fail | Current-revision, sha256 and run-ownership checks | `test_ac5_*`, `test_ac6_*` |
+| A crash near the action does not duplicate it | Ledger row keyed `run:proposal:revision`; replay detection on Recover | `test_ac10_*`; E2E process exit after commit |
+| Failures are bounded and honest | Per-call timeout, 2 attempts, strict schemas, `failed` status with a code; dependents never run | `test_ac8_*`, `test_invalid_plan_dag_*` |
+| Model or source text cannot open the gate | The gate is code policy by workflow type; injected sources are excluded; citations must resolve | `test_ac12_*` |
 
 ## The six specialist agents
 
-| Agent | Responsibility | What it reads before calling the model | Model |
-|---|---|---|---|
-| **Insight** | Client and audience profiling, competitor landscape, industry benchmarks | Mock industry benchmark from the ad API client (defaults to `tourism_hospitality`) | Llama 3.3 70B |
-| **Strategy** | Media plan: placements, budget split, flight schedule, targeting, performance forecast | Insight output from shared memory | Llama 3.3 70B |
-| **Creative** | Ad copy per placement (with A/B versions), visual briefs, video scripts | Strategy and Insight outputs | Llama 3.3 70B |
-| **Analytics** | Campaign reporting, anomaly detection against benchmarks, optimisation suggestions | Mock campaign stats, report summary and anomaly list, **only when a `campaign_id` is present in context** (see Limitations) | Llama 3.3 70B |
-| **Compliance** | Reviews copy against policy and regulations retrieved from the RAG store; cites the source text for each issue | Creative output, plus the top-3 retrieved regulation chunks | Llama 3.1 8B (fast) |
-| **Competitive Intelligence (CI)** | Platform-vs-platform comparison, objection handling, pitch talking points | Insight output | Llama 3.3 70B |
+Each agent is a spec: a system prompt (live mode), a strict Pydantic output contract, and the upstream outputs it may read. Demo mode uses deterministic generators with the same output shapes.
 
-The **orchestrator** (Llama 3.3 70B) sits above them. It classifies the request, writes an execution plan (which agents, in which order, with which `depends_on` links) and synthesises the final brief. Model names come from `GROQ_MODEL` / `GROQ_MODEL_FAST` in `.env`.
+| Agent | Produces | Validation beyond the schema |
+|---|---|---|
+| insight | client/audience profile, mock benchmarks | — |
+| strategy | budget, schedule, placement split | percentages must sum to 100; the end date cannot precede the start |
+| creative | ad copy per placement | unique creative ids |
+| compliance | findings with a severity and a citation | every citation must resolve to a retrieved, non-flagged corpus chunk; a deterministic rule engine also runs as a backstop |
+| analytics | anomalies against mock benchmarks, recommended budget shift | — |
+| ci | illustrative channel comparison, talking points | — (the prompt forbids unsourced figures; this is not validated) |
 
-## Architecture
+Gated workflows: **campaign_launch** (simulated launch) and **performance_review** (simulated budget shift). **pitch_support** produces a deliverable only, so it has nothing to approve.
 
-```
-React UI (chat · dashboard · approval queue · live agent status)
-        │  REST + WebSocket
-   FastAPI backend
-        │
-   Orchestrator (LangGraph state machine)
-   planning ─┬─► direct_answer ─► END                      (empty plan: knowledge question)
-             └─► execute_agents (phased) ─┬─► human_review ─► synthesize ─► END
-                        │                 └─────────────────► synthesize ─► END
-        ┌────────┬──────┴───┬──────────┬────────────┬────────┐
-        ▼        ▼          ▼          ▼            ▼        ▼
-     Insight  Strategy  Creative  Analytics   Compliance    CI
-                                                   │
-                                             TF-IDF RAG over
-                                             rag_documents/
-        │
-   Shared memory (Redis, or in-process fallback): sessions, agent outputs, approvals
-   Ad platform API client (mock mode: sample campaigns, benchmarks, creatives)
-```
+## Grounding (RAG): what it actually is
 
-Design decisions worth pointing out:
+The corpus is 7 small documents, 37 section chunks, each with a stable id and a sha256. Retrieval is TF-IDF with cosine similarity. Answers are **extractive only**: verbatim sentences with citations that resolve to document, version, section and hash.
 
-**Routing before planning.** The planning prompt tells the orchestrator to return an empty plan, with the answer in the `intent` field, for general knowledge questions ("what is CPM?"). An empty plan routes to `direct_answer` and ends the graph, so those questions cost one model call instead of planning, several agent calls and a synthesis call.
+- It **abstains** when evidence is weak.
+- It **reports a conflict** when two sources tagged with the same topic disagree.
+- It **excludes** chunks containing instruction-like text.
 
-**Dependency-ordered execution.** `_group_by_phase` turns the plan's `depends_on` links into phases. Agents pass work to each other through shared memory: Strategy reads Insight's output, Creative reads the media plan and audience insight, Compliance reads the creatives, CI reads the insight. Each agent's status (running / completed / failed) is pushed to the UI over the WebSocket as it happens.
+On the self-written held-out set it scored **19/23**. One failure is unsafe: it answered a question it should have declined. See [docs/EVALUATION.md](docs/EVALUATION.md). A citation shows where a sentence came from; it is not legal approval or current law.
 
-**Human-in-the-loop on the decisions that matter.** After execution the graph routes to `human_review` when the planner set `requires_human_approval`, when the Strategy budget (`budget.total_cny`) is above **¥100,000**, or when Compliance returns `overall_pass: false`. The review node creates an approval record for a budget over the threshold and for any compliance issue with severity `block`. It saves the record to shared memory and pushes it to the UI, and the final brief ends with an "Items requiring your approval" list. The account manager approves or rejects in the approval queue, and the decision and feedback are stored. See Limitations for what the decision does *not* do yet. An automation tool for ad spend that never asks is not one a sales team would trust.
+## Verified results
 
-**Grounded compliance.** The compliance agent doesn't rely only on the model's memory of advertising rules. It retrieves relevant passages from a regulation corpus and its prompt requires it to cite them (`regulation_source`, `regulations_referenced`). The prompt also carries a short list of hard-coded rules (banned superlatives, finance disclaimers, and similar).
+| What | Command | Result |
+|---|---|---|
+| Backend tests | `pytest -q -rs` | 82 passed, 1 skipped: the live-provider test is **NOT RUN** without `GROQ_API_KEY` |
+| Browser E2E | `node e2e/run_e2e.mjs` | 14/14 checks: approval, role denial, rejection, revision, process kill while pending, crash after commit then Recover, provider failure then Recover, answers, unsafe text, dashboard, mobile at 390 px |
+| Grounding eval | `python scripts/run_eval.py` | 19/23 held-out cases |
+| Baseline defects | `scripts/repro_baseline_defects.py` | 13/13 reproduced on the original code, each mapped to a fixing test |
 
-## How the RAG actually works
-
-This is deliberately small and dependency-free:
-
-| Item | Actual implementation |
-|---|---|
-| Corpus | 3 hand-written `.txt` files in `rag_documents/`: a summary of advertising regulations (FTC, UK ASA CAP Code, health, finance, alcohol, children, GDPR/CCPA, comparative, green claims, influencer), summaries of Meta / Google Ads / TikTok / LinkedIn ad policies, and brand guidelines for a fictional company ("NovaByte Technologies"). These are paraphrased summaries written for the project, not official policy texts. |
-| Chunking | LangChain `RecursiveCharacterTextSplitter`, `chunk_size=500`, `chunk_overlap=50`, giving **36 chunks** (printed at startup: `[RAG] Split into 36 chunks`) |
-| Indexing | Term frequency per chunk plus smoothed IDF (`log((n+1)/(df+1)) + 1`), computed in pure Python at FastAPI startup |
-| Query | The Creative agent's `creatives` field (or the task text if there are no creatives yet) |
-| Scoring / top-k | Sum of `tf_query · idf · tf_chunk · idf` over shared terms; top **3** chunks with score > 0 |
-| Use | The chunks are injected into the Compliance agent's context as `retrieved_regulations_from_rag` |
-
-There are no embeddings, no vector database and no external API, so retrieval is fully reproducible. The trade-off is that retrieval is purely lexical: it matches shared words, not meaning. The retrieved chunks are not always the most relevant ones, especially when the creatives are in Chinese and the corpus is in English.
-
-## Running it
-
-You need a free Groq API key from [console.groq.com](https://console.groq.com). The backend builds its Groq clients at import time, so it will not start with `GROQ_API_KEY` empty (any non-empty value lets it boot, but chat requests then fail). The offline unit tests only need a placeholder value; CI uses `GROQ_API_KEY=test-key`.
-
-```bash
-# backend
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env            # add GROQ_API_KEY
-uvicorn backend.main:app --reload --port 8000
-
-# frontend (second terminal)
-cd frontend && npm install && npm run dev
-```
-
-Open http://localhost:5173. API docs are at http://localhost:8000/docs. `./start.sh` does both steps, and `docker compose up` runs backend, frontend and Redis together.
-
-## Demo walkthrough
-
-With a Groq key set, these are the examples the project is built around. Steps 2, 4 and 5 use the UI's quick-start buttons.
-
-1. **Knowledge question → direct answer.** Ask "What is CPM?". The trace shows a single `direct_answer` step and no specialist agents run. `python scripts/demo_routing.py` runs this check for three knowledge questions and two agent tasks and prints PASS/FAIL per question.
-2. **Full campaign → multi-agent plan.** Click "Create a CNY campaign plan for a Marina Bay hotel". Watch the Agent Status panel as the planned agents move from running to completed in dependency order, then read the synthesised brief.
-3. **Approval queue.** If the Strategy agent proposes a budget above ¥100,000, or Compliance flags a blocking issue, an approval card appears. Approve or reject it with feedback, and the decision is recorded via `POST /api/approvals/{id}/decide`.
-4. **Compliance with citations.** Click "Generate feed ad creatives for a luxury brand". When the planner includes Compliance, its agent's output lists issues with a `regulation_source` taken from the retrieved chunks.
-5. **Competitive pitch.** Click "Our platform vs Instagram — comparison for client pitch". The planner is expected to route this to the CI agent, which returns objection handling and talking points.
-
-LLM output varies between runs, so which agents the planner picks and whether an approval is triggered are not guaranteed for a given prompt.
-
-## Tests and what has been verified
-
-```bash
-GROQ_API_KEY=test-key pytest     # 7 offline unit tests; placeholder key only (tests/live is excluded in pytest.ini)
-pytest tests/live -q             # 8 live tests against Groq; needs GROQ_API_KEY
-python scripts/demo_routing.py   # prints how the orchestrator routes sample requests; needs GROQ_API_KEY
-cd frontend && npm ci && npm run build   # production build of the UI
-```
-
-The **unit tests** (run in CI on every push to `main` and on pull requests) cover: agent configuration (Insight prompt, Compliance on the fast model), orchestrator initialisation with exactly the six agents, dependency-phase grouping (5 steps → 4 phases), the in-memory session and agent-output store, and the benchmark anomaly detector.
-
-The **live tests** check routing behaviour against the real model: three knowledge questions must be direct answers, two work requests must call agents, and edge cases (empty input, a Chinese-language question, response shape) must not crash. They depend on the model and on network access, so they are opt-in and not run in CI.
-
-The unit tests do **not** exercise model output quality, RAG retrieval quality, the WebSocket flow or the React UI behaviour.
+Evidence, screenshots and a recorded replay are in [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md). All results come from developer runs in a Linux container. They are not stakeholder acceptance testing. Live language-model behaviour was not tested.
 
 ## Limitations
 
-- **Mock data only.** The ad platform client runs in mock mode, and its real-API methods raise `NotImplementedError`. Wiring a real ads API means replacing `backend/tools/ad_api.py` and adding auth. The `/api/dashboard/stats` endpoint returns hard-coded numbers, and the dashboard's spend-by-placement pie is hard-coded in the React component. None of these figures are measurements.
-- **Approvals don't resume the graph.** The review node records approvals and the brief lists them, but the graph runs through to synthesis without waiting. A later approve/reject decision is stored, but it is not fed back into the plan or used to regenerate anything. A true pause-and-resume would use LangGraph interrupts with a checkpointer.
-- **Some context is never populated by the chat flow.** The orchestrator passes only `session_id` to agents. Analytics fetches mock campaign stats and runs anomaly detection only when a `campaign_id` is in context, and client-profile lookups need a `client_name`, so neither path runs from the chat UI today. Insight always uses the default `tourism_hospitality` benchmark.
-- **Output validation.** Agent outputs are parsed as JSON (with a fallback to raw text) but not validated against per-agent schemas. Pydantic models for each output would make synthesis more robust.
-- **Sequential execution.** Steps within a phase still run one after another. Independent agents (e.g. Insight and CI) could run concurrently with `asyncio.gather`.
-- **Small, hand-written corpus.** The RAG corpus is 36 chunks of paraphrased summaries. A real deployment would ingest actual policy documents and move to embedding-based or hybrid retrieval once the corpus outgrows TF-IDF.
-- **No evaluation harness.** Nothing measures output quality yet. The next step would be a small set of golden requests with rubric-based scoring.
-- **Prototype security posture.** There is no authentication, and CORS is configured for local development.
+- **Simulated only.** There is no ad-platform client. "Execute" writes a row to a local ledger. Exactly-once delivery to an external system is **not** claimed (see ARCHITECTURE.md).
+- **Demo roles are not authentication.** They are self-declared headers, enforced server-side for rules such as approver-only decisions and separation of duties. Read endpoints are open. Keep the server on localhost.
+- **Single process.** Per-run locks are in-process. Several workers would need database leases.
+- **Lexical retrieval.** It misses paraphrases and can answer from a keyword match (U5). The conflict check only sees conflicts tagged in the corpus.
+- **Deterministic demo provider.** It shows the control flow, not intelligence. The live Groq path is wired and unit-tested with a fake HTTP layer, but it has not been run.
 
-## Stack
+## Documentation
 
-Python 3.12 (CI) · FastAPI · LangGraph + LangChain · Groq (Llama 3.3 70B / 3.1 8B) · Redis (optional) · React 18 + Vite + Tailwind · pytest · GitHub Actions
+| Doc | Contents |
+|---|---|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | components, state and graph diagrams, decision path, transaction boundary, rationale |
+| [RUNBOOK.md](docs/RUNBOOK.md) | Mac start, checks, live provider, gate operation, failure and recovery SOP, crash drill, explicit reset |
+| [ACCEPTANCE.md](docs/ACCEPTANCE.md) | 16 acceptance cases → tests → evidence |
+| [DEFECT_LOG.md](docs/DEFECT_LOG.md) | reproduced baseline defects with reviewer attribution, and issues found during the work |
+| [EVALUATION.md](docs/EVALUATION.md) | grounding method, held-out results, failures |
+| [DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | 3-minute demo |
+| [INTERVIEW_GUIDE_zh.md](docs/INTERVIEW_GUIDE_zh.md) | 中文面试指南：15 个难题 |
+| [CV_TEMPLATES.md](docs/CV_TEMPLATES.md) | conditional CV bullets |
 
 ## Project layout
 
 ```
 backend/
-  agents/        orchestrator.py (LangGraph graph), base_agent.py, one file per specialist agent
-  prompts/       system prompts and JSON output contracts for each agent
-  tools/         ad platform API client (mock mode) and analytics helpers
-  memory/        shared memory with Redis / in-process fallback
-  models/        Pydantic request/response schemas
-  rag.py         TF-IDF retriever over rag_documents/
-  main.py        FastAPI app: chat, approvals, sessions, dashboard, WebSocket
-frontend/src/    React UI: ChatPanel, AgentStatus, HumanApproval, Dashboard, CampaignView
-rag_documents/   regulation corpus used by the compliance agent
-scripts/         demo_routing.py
-tests/           unit tests; tests/live/ for LLM-backed tests
+  agents/orchestrator.py   LangGraph graph + WorkflowRunner (drive, decide, cancel, recover, reconcile)
+  agents/*_agent.py        six agent specs;  prompts/templates.py  live-mode prompts
+  contracts.py             plan DAG + per-agent output contracts, API bodies
+  store.py                 SQLite store (transactions, idempotency, decisions, ledger)
+  policy.py                gate policy, rule-engine compliance, proposal assembly
+  grounding.py             corpus, TF-IDF retrieval, extractive answers, citations
+  simulator.py             simulated action executor (transaction boundary)
+  providers.py             demo / Groq providers, fault injection, bounded call policy
+  demo_generators.py       deterministic demo outputs;  tools/  mock data + analytics helpers
+  main.py                  FastAPI routes, read-only WebSocket, exports
+frontend/src/              React UI (runs, proposal and decisions, recovery, answers, dashboard, sources)
+rag_documents/             labelled corpus;  eval/  held-out cases (read only by scripts/run_eval.py)
+tests/                     offline suite;  tests/live/  opt-in live test
+e2e/                       Chromium E2E driver + recorded-replay builder
+scripts/                   start.sh, demo_cli.py, run_eval.py, reset_demo_data.py, repro_baseline_defects.py
+docs/                      docs above + evidence/, screenshots/, replay/
 ```
 
 ## Background
 
-Built for the BC3415 course project at NTU.
+Originally built for the BC3415 course project at NTU; reworked here as a reliability portfolio piece.
 
 ---
 
